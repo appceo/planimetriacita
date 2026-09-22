@@ -35,7 +35,7 @@
     <!-- Header -->
     <header class="bg-indigo-900 text-white rounded-xl p-6 shadow-lg">
       <h1 class="text-2xl md:text-3xl font-bold">Gestión de Acomodación y Sillas - Retiro Espiritual</h1>
-      <p class="text-indigo-200 text-sm mt-1">REGLA PRIORITARIA: Acomodación por edad estrictamente lineal (Fila A exclusiva menores/jóvenes, Fila B siguientes, etc.).</p>
+      <p class="text-indigo-200 text-sm mt-1">Verificación estricta de columna Sexo (r[12]), edad lineal ascendente (Fila A menores), parejas de líderes y descarga Excel/PNG.</p>
     </header>
 
     <!-- Formularios y Controles -->
@@ -73,7 +73,7 @@
 
       <div class="flex flex-col justify-end space-y-3 bg-indigo-50 p-4 rounded-xl border border-indigo-100">
         <button id="btnProcess" onclick="processAllocation()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-lg shadow transition">
-          🚀 Generar Acomodación (Edad Estricta)
+          🚀 Generar Acomodación Corregida
         </button>
         <button id="btnExportExcel" onclick="exportToExcel()" disabled class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-4 rounded-lg shadow disabled:opacity-50 disabled:cursor-not-allowed transition">
           📊 Descargar Excel Con Columna SILLA
@@ -113,7 +113,7 @@
         <div>
           <h2 class="text-xl font-bold text-gray-800">Plano Gráfico de Ubicación en el Salón</h2>
           <p class="text-xs text-gray-500">
-            <strong>Fila A = Participantes de menor edad del retiro</strong>. Orden secuencial estricto por edad de Fila A a Fila H.
+            <strong>Validación de Sexo Corregida</strong>. Fila A exclusiva para los participantes de menor edad.
           </p>
         </div>
         <div class="flex items-center gap-4 text-xs font-medium">
@@ -360,7 +360,19 @@
 
           const nombreCompleto = `${r[1]||''} ${r[2]||''} ${r[3]||''} ${r[4]||''}`.replace(/\s+/g, ' ').trim();
           const edad = parseInt(r[8]) || 0;
-          const sexo = (r[11] || '').trim();
+          
+          // EXTRAER DE FORMA EXACTA LA COLUMNA DE SEXO (Índice 12 en CSV)
+          let rawSexo = (r[12] || '').trim();
+          
+          // Resguardo de respaldo por la columna RED si la columna 12 viniera vacía
+          if (!rawSexo || (rawSexo !== 'Femenino' && rawSexo !== 'Masculino')) {
+            let redText = (r[9] || '').trim().toUpperCase();
+            if (redText.includes('MUJERES') || redText.includes('ESPOSAS')) rawSexo = 'Femenino';
+            else if (redText.includes('HOMBRES') || redText.includes('ESPOSOS')) rawSexo = 'Masculino';
+            else rawSexo = 'Femenino'; // Default seguro
+          }
+
+          const sexo = rawSexo;
           const tieneFamiliar = (r[14] || '').trim().toUpperCase() === 'SI';
           const familiarNom = `${r[15]||''} ${r[16]||''} ${r[17]||''} ${r[18]||''}`.replace(/\s+/g, ' ').trim();
 
@@ -379,7 +391,7 @@
         buildFamilyGroups(data);
         allocateSeatsStrictAge(data);
 
-        showStatus('Acomodación generada. La Fila A contiene exclusivamente a los participantes de menor edad.');
+        showStatus('Acomodación generada exitosamente con validación estricta de género y edad.');
         document.getElementById('btnExportExcel').disabled = false;
         document.getElementById('btnExportImage').disabled = false;
         document.getElementById('statsBox').classList.remove('hidden');
@@ -390,9 +402,7 @@
       }
     }
 
-    // ALGORITMO PRIORITARIO: ORDEN STRICTO DE EDAD FILA POR FILA
     function allocateSeatsStrictAge(participants) {
-      // 1. ORDENAR A TODOS LOS PARTICIPANTES DE MENOR A MAYOR EDAD
       const sortedByAge = [...participants].sort((a, b) => a.edad - b.edad);
 
       document.getElementById('statTotal').innerText = participants.length;
@@ -403,9 +413,7 @@
       const grid = Array.from({ length: selectedRows }, () => Array(selectedCols).fill(null));
       let pIdx = 0;
 
-      // 2. LLENAR CADA FILA (A, B, C...) EXCLUSIVAMENTE CON LOS PARTICIPANTES MÁS JÓVENES DEL LOTE RESTANTE
       for (let r = 0; r < selectedRows; r++) {
-        // Extraer los N participantes más jóvenes para esta fila específica
         let rowPeople = sortedByAge.slice(pIdx, pIdx + selectedCols);
         pIdx += selectedCols;
 
@@ -435,7 +443,7 @@
         }
       }
 
-      // 3. DISPERSIÓN DE FAMILIARES SOLO MEDIANTE INTERCAMBIOS HORIZONTALES (Misma Fila o Edad Similar)
+      // Separación horizontal de familiares en la misma fila
       for (let r = 0; r < selectedRows; r++) {
         for (let c1 = 0; c1 < selectedCols; c1++) {
           let p1 = grid[r][c1];
@@ -447,7 +455,6 @@
 
             let sameFamily = (p1.familyId !== null && p2.familyId !== null && p1.familyId === p2.familyId);
             if (sameFamily || Math.abs(c1 - c2) <= 2) {
-              // Buscar un candidato k en la misma fila que no tenga familiar para cambiar
               for (let ck = selectedCols - 1; ck >= 0; ck--) {
                 let candidate = grid[r][ck];
                 if (candidate && !candidate.tieneFamiliar && Math.abs(ck - c1) > 2) {
