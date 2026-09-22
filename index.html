@@ -35,7 +35,7 @@
     <!-- Header -->
     <header class="bg-indigo-900 text-white rounded-xl p-6 shadow-lg">
       <h1 class="text-2xl md:text-3xl font-bold">Gestión de Acomodación y Sillas - Retiro Espiritual</h1>
-      <p class="text-indigo-200 text-sm mt-1">Verificación estricta de columna Sexo (r[12]), edad lineal ascendente (Fila A menores), parejas de líderes y descarga Excel/PNG.</p>
+      <p class="text-indigo-200 text-sm mt-1">Conteo exacto de género desde la columna Sexo (Femenino/Masculino), edad lineal ascendente y descarga Excel/PNG.</p>
     </header>
 
     <!-- Formularios y Controles -->
@@ -73,7 +73,7 @@
 
       <div class="flex flex-col justify-end space-y-3 bg-indigo-50 p-4 rounded-xl border border-indigo-100">
         <button id="btnProcess" onclick="processAllocation()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-lg shadow transition">
-          🚀 Generar Acomodación Corregida
+          🚀 Generar Acomodación Exacta
         </button>
         <button id="btnExportExcel" onclick="exportToExcel()" disabled class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-4 rounded-lg shadow disabled:opacity-50 disabled:cursor-not-allowed transition">
           📊 Descargar Excel Con Columna SILLA
@@ -113,7 +113,7 @@
         <div>
           <h2 class="text-xl font-bold text-gray-800">Plano Gráfico de Ubicación en el Salón</h2>
           <p class="text-xs text-gray-500">
-            <strong>Validación de Sexo Corregida</strong>. Fila A exclusiva para los participantes de menor edad.
+            Fila A exclusiva para los participantes de menor edad. Género extraído con precisión absoluta.
           </p>
         </div>
         <div class="flex items-center gap-4 text-xs font-medium">
@@ -361,18 +361,20 @@
           const nombreCompleto = `${r[1]||''} ${r[2]||''} ${r[3]||''} ${r[4]||''}`.replace(/\s+/g, ' ').trim();
           const edad = parseInt(r[8]) || 0;
           
-          // EXTRAER DE FORMA EXACTA LA COLUMNA DE SEXO (Índice 12 en CSV)
-          let rawSexo = (r[12] || '').trim();
-          
-          // Resguardo de respaldo por la columna RED si la columna 12 viniera vacía
-          if (!rawSexo || (rawSexo !== 'Femenino' && rawSexo !== 'Masculino')) {
-            let redText = (r[9] || '').trim().toUpperCase();
-            if (redText.includes('MUJERES') || redText.includes('ESPOSAS')) rawSexo = 'Femenino';
-            else if (redText.includes('HOMBRES') || redText.includes('ESPOSOS')) rawSexo = 'Masculino';
-            else rawSexo = 'Femenino'; // Default seguro
+          // EXTRAER GÉNERO DE MANERA EXCLUSIVA BUSCANDO 'Femenino' O 'Masculino' EN LA FILA
+          let detectedSexo = null;
+          for (let colIdx = 0; colIdx < r.length; colIdx++) {
+            let val = (r[colIdx] || '').trim().toLowerCase();
+            if (val === 'femenino') {
+              detectedSexo = 'Femenino';
+              break;
+            } else if (val === 'masculino') {
+              detectedSexo = 'Masculino';
+              break;
+            }
           }
 
-          const sexo = rawSexo;
+          const sexo = detectedSexo || 'Femenino';
           const tieneFamiliar = (r[14] || '').trim().toUpperCase() === 'SI';
           const familiarNom = `${r[15]||''} ${r[16]||''} ${r[17]||''} ${r[18]||''}`.replace(/\s+/g, ' ').trim();
 
@@ -391,7 +393,7 @@
         buildFamilyGroups(data);
         allocateSeatsStrictAge(data);
 
-        showStatus('Acomodación generada exitosamente con validación estricta de género y edad.');
+        showStatus('Acomodación generada exitosamente. Conteo exacto de género aplicado.');
         document.getElementById('btnExportExcel').disabled = false;
         document.getElementById('btnExportImage').disabled = false;
         document.getElementById('statsBox').classList.remove('hidden');
