@@ -35,7 +35,7 @@
     <!-- Header -->
     <header class="bg-indigo-900 text-white rounded-xl p-6 shadow-lg">
       <h1 class="text-2xl md:text-3xl font-bold">Gestión de Acomodación y Sillas - Retiro Espiritual</h1>
-      <p class="text-indigo-200 text-sm mt-1">Colores únicos inconfundibles por familia, menores en Fila A, parejas de líderes, zona temporal y descarga en Excel/PNG.</p>
+      <p class="text-indigo-200 text-sm mt-1">REGLA PRIORITARIA: Acomodación por edad estrictamente lineal (Fila A exclusiva menores/jóvenes, Fila B siguientes, etc.).</p>
     </header>
 
     <!-- Formularios y Controles -->
@@ -73,7 +73,7 @@
 
       <div class="flex flex-col justify-end space-y-3 bg-indigo-50 p-4 rounded-xl border border-indigo-100">
         <button id="btnProcess" onclick="processAllocation()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-lg shadow transition">
-          🚀 Generar Acomodación
+          🚀 Generar Acomodación (Edad Estricta)
         </button>
         <button id="btnExportExcel" onclick="exportToExcel()" disabled class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-4 rounded-lg shadow disabled:opacity-50 disabled:cursor-not-allowed transition">
           📊 Descargar Excel Con Columna SILLA
@@ -113,7 +113,7 @@
         <div>
           <h2 class="text-xl font-bold text-gray-800">Plano Gráfico de Ubicación en el Salón</h2>
           <p class="text-xs text-gray-500">
-            Cada grupo familiar tiene un <strong>color exclusivo asignado matemáticamente</strong> y una etiqueta visible con el nombre de su familia.
+            <strong>Fila A = Participantes de menor edad del retiro</strong>. Orden secuencial estricto por edad de Fila A a Fila H.
           </p>
         </div>
         <div class="flex items-center gap-4 text-xs font-medium">
@@ -262,7 +262,6 @@
       });
     }
 
-    // Generador dinámico de colores HSL con máxima diferencia cromática
     function generateUniqueColor(index, total) {
       const hue = Math.round((index * (360 / Math.max(total, 1))) % 360);
       return {
@@ -378,9 +377,9 @@
 
         rawLoadedData = rows;
         buildFamilyGroups(data);
-        allocateSeats(data);
+        allocateSeatsStrictAge(data);
 
-        showStatus('Acomodación generada. Cada familia cuenta con un color único e inconfundible.');
+        showStatus('Acomodación generada. La Fila A contiene exclusivamente a los participantes de menor edad.');
         document.getElementById('btnExportExcel').disabled = false;
         document.getElementById('btnExportImage').disabled = false;
         document.getElementById('statsBox').classList.remove('hidden');
@@ -391,7 +390,9 @@
       }
     }
 
-    function allocateSeats(participants) {
+    // ALGORITMO PRIORITARIO: ORDEN STRICTO DE EDAD FILA POR FILA
+    function allocateSeatsStrictAge(participants) {
+      // 1. ORDENAR A TODOS LOS PARTICIPANTES DE MENOR A MAYOR EDAD
       const sortedByAge = [...participants].sort((a, b) => a.edad - b.edad);
 
       document.getElementById('statTotal').innerText = participants.length;
@@ -400,91 +401,66 @@
       document.getElementById('statFam').innerText = Object.keys(familyColorMap).length;
 
       const grid = Array.from({ length: selectedRows }, () => Array(selectedCols).fill(null));
-      let idx = 0;
+      let pIdx = 0;
 
-      for (let rStart = 0; rStart < selectedRows; rStart += 2) {
-        let r1 = rStart;
-        let r2 = (rStart + 1 < selectedRows) ? rStart + 1 : null;
+      // 2. LLENAR CADA FILA (A, B, C...) EXCLUSIVAMENTE CON LOS PARTICIPANTES MÁS JÓVENES DEL LOTE RESTANTE
+      for (let r = 0; r < selectedRows; r++) {
+        // Extraer los N participantes más jóvenes para esta fila específica
+        let rowPeople = sortedByAge.slice(pIdx, pIdx + selectedCols);
+        pIdx += selectedCols;
 
-        let blockCapacity = (r2 !== null) ? selectedCols * 2 : selectedCols;
-        let blockPeople = sortedByAge.slice(idx, idx + blockCapacity);
-        idx += blockCapacity;
+        if (rowPeople.length === 0) break;
 
-        if (blockPeople.length === 0) break;
-
-        let fList = blockPeople.filter(p => p.sexo.toLowerCase() === 'femenino');
-        let mList = blockPeople.filter(p => p.sexo.toLowerCase() === 'masculino');
+        let fList = rowPeople.filter(p => p.sexo.toLowerCase() === 'femenino');
+        let mList = rowPeople.filter(p => p.sexo.toLowerCase() === 'masculino');
 
         for (let c = 0; c < selectedCols; c++) {
           let desiredGender = (c % 2 === 0) ? 'femenino' : 'masculino';
+          let person = null;
 
-          function pickUpToTwo(primaryList, secondaryList) {
-            let picked = [];
-            let targetCount = (r2 !== null) ? 2 : 1;
-            while (picked.length < targetCount) {
-              if (primaryList.length > 0) picked.push(primaryList.shift());
-              else if (secondaryList.length > 0) picked.push(secondaryList.shift());
-              else break;
-            }
-            return picked;
+          if (desiredGender === 'femenino') {
+            if (fList.length > 0) person = fList.shift();
+            else if (mList.length > 0) person = mList.shift();
+          } else {
+            if (mList.length > 0) person = mList.shift();
+            else if (fList.length > 0) person = fList.shift();
           }
 
-          let pair = (desiredGender === 'femenino') ? pickUpToTwo(fList, mList) : pickUpToTwo(mList, fList);
-
-          if (pair.length >= 1) {
-            let p1 = pair[0];
-            p1.row = r1;
-            p1.col = c;
-            p1.silla = `${String.fromCharCode(65 + r1)}${c + 1}`;
-            grid[r1][c] = p1;
-          }
-
-          if (pair.length === 2 && r2 !== null) {
-            let p2 = pair[1];
-            p2.row = r2;
-            p2.col = c;
-            p2.silla = `${String.fromCharCode(65 + r2)}${c + 1}`;
-            grid[r2][c] = p2;
+          if (person) {
+            person.row = r;
+            person.col = c;
+            person.silla = `${String.fromCharCode(65 + r)}${c + 1}`;
+            grid[r][c] = person;
           }
         }
       }
 
-      // Separación de familiares
-      const assignedList = [];
+      // 3. DISPERSIÓN DE FAMILIARES SOLO MEDIANTE INTERCAMBIOS HORIZONTALES (Misma Fila o Edad Similar)
       for (let r = 0; r < selectedRows; r++) {
-        for (let c = 0; c < selectedCols; c++) {
-          if (grid[r][c] !== null) assignedList.push(grid[r][c]);
-        }
-      }
+        for (let c1 = 0; c1 < selectedCols; c1++) {
+          let p1 = grid[r][c1];
+          if (!p1 || !p1.tieneFamiliar) continue;
 
-      for (let i = 0; i < assignedList.length; i++) {
-        let p1 = assignedList[i];
-        if (!p1.tieneFamiliar) continue;
+          for (let c2 = c1 + 1; c2 < selectedCols; c2++) {
+            let p2 = grid[r][c2];
+            if (!p2 || !p2.tieneFamiliar) continue;
 
-        for (let j = i + 1; j < assignedList.length; j++) {
-          let p2 = assignedList[j];
-          if (!p2.tieneFamiliar) continue;
+            let sameFamily = (p1.familyId !== null && p2.familyId !== null && p1.familyId === p2.familyId);
+            if (sameFamily || Math.abs(c1 - c2) <= 2) {
+              // Buscar un candidato k en la misma fila que no tenga familiar para cambiar
+              for (let ck = selectedCols - 1; ck >= 0; ck--) {
+                let candidate = grid[r][ck];
+                if (candidate && !candidate.tieneFamiliar && Math.abs(ck - c1) > 2) {
+                  grid[r][c2] = candidate;
+                  grid[r][ck] = p2;
 
-          let sameFamily = (p1.familyId !== null && p2.familyId !== null && p1.familyId === p2.familyId);
-          let manhattanDist = Math.abs(p1.row - p2.row) + Math.abs(p1.col - p2.col);
+                  candidate.col = c2;
+                  candidate.silla = `${String.fromCharCode(65 + r)}${c2 + 1}`;
 
-          if (sameFamily || manhattanDist <= 3) {
-            for (let k = assignedList.length - 1; k >= 0; k--) {
-              let candidate = assignedList[k];
-              
-              if (!candidate.tieneFamiliar &&
-                  candidate.sexo.toLowerCase() === p2.sexo.toLowerCase() &&
-                  (Math.abs(candidate.row - p1.row) + Math.abs(candidate.col - p1.col)) > 3) {
-
-                let r2 = p2.row, c2 = p2.col, silla2 = p2.silla;
-                let rk = candidate.row, ck = candidate.col, sillaK = candidate.silla;
-
-                p2.row = rk; p2.col = ck; p2.silla = sillaK;
-                candidate.row = r2; candidate.col = c2; candidate.silla = silla2;
-
-                grid[r2][c2] = candidate;
-                grid[rk][ck] = p2;
-                break;
+                  p2.col = ck;
+                  p2.silla = `${String.fromCharCode(65 + r)}${ck + 1}`;
+                  break;
+                }
               }
             }
           }
