@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Asignación de Sillas y Planimetría - Retiro Espiritual</title>
+  <title>Acomodación y Distribución de Sillas - Retiro Espiritual</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- SheetJS para exportar a Excel -->
@@ -24,7 +24,7 @@
     <!-- Header -->
     <header class="bg-indigo-900 text-white rounded-xl p-6 shadow-lg">
       <h1 class="text-2xl md:text-3xl font-bold">Gestión de Acomodación y Sillas - Retiro Espiritual</h1>
-      <p class="text-indigo-200 text-sm mt-1">Parejas verticales por líder (mismo género y edad similar), menores adelante (Fila A) y planimetría dinámica.</p>
+      <p class="text-indigo-200 text-sm mt-1">Orden por edad estrictamente ascendente (Menores en Fila A), parejas verticales por líder (mismo género) y alternancia por columna.</p>
     </header>
 
     <!-- Formularios y Controles -->
@@ -42,11 +42,11 @@
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1">Número de Participantes:</label>
             <div class="flex gap-2">
-              <input id="participantCount" type="number" placeholder="Ej: 100" 
+              <input id="participantCount" type="number" placeholder="Ej: 96" 
                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                 oninput="updatePlanimetryOptions()">
-              <button onclick="detectParticipantCount()" class="bg-slate-200 hover:bg-slate-300 text-xs font-semibold px-3 py-2 rounded-lg transition">
-                Cargar de Hoja
+              <button onclick="detectParticipantCount()" class="bg-slate-200 hover:bg-slate-300 text-xs font-semibold px-3 py-2 rounded-lg transition whitespace-nowrap">
+                Autodetectar Hoja
               </button>
             </div>
           </div>
@@ -98,7 +98,7 @@
       <div class="flex flex-col md:flex-row justify-between items-center gap-4 border-b pb-4">
         <div>
           <h2 class="text-xl font-bold text-gray-800">Plano Gráfico de Ubicación en el Salón</h2>
-          <p class="text-xs text-gray-500">Fila A (Menores de edad adelante) ➔ Filas traseras (Mayores). Las parejas seguidas en columna comparten líder.</p>
+          <p class="text-xs text-gray-500">Fila A (Menores de edad) ➔ Filas traseras (Mayores). Las parejas verticales consecutivas (ej. A1-B1, C2-D2) comparten líder.</p>
         </div>
         <div class="flex items-center gap-4 text-xs font-medium">
           <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-pink-100 border border-pink-400 inline-block"></span> Femenino</span>
@@ -108,8 +108,8 @@
       </div>
 
       <!-- Escenario / Tarima -->
-      <div class="w-full bg-slate-800 text-white text-center py-2 rounded-md text-xs font-bold tracking-widest uppercase shadow">
-        Escenario / Tarima (Fila A - Menores de edad)
+      <div class="w-full bg-slate-800 text-white text-center py-2.5 rounded-md text-xs font-bold tracking-widest uppercase shadow">
+        Escenario / Tarima (Fila A - Menores de Edad)
       </div>
 
       <!-- Grid interactivo -->
@@ -180,17 +180,15 @@
         const text = await response.text();
         const rows = parseCSV(text);
         
-        // Descontar la fila de encabezado
         const count = Math.max(0, rows.length - 1);
         document.getElementById('participantCount').value = count;
         updatePlanimetryOptions();
-        showStatus(`Se detectaron ${count} participantes registrados.`);
+        showStatus(`Se detectaron ${count} participantes en la tabla.`);
       } catch (err) {
         showStatus('Error al leer el archivo: ' + err.message, true);
       }
     }
 
-    // Calcula automáticamente opciones de cuadrícula (filas x columnas) según la cantidad
     function updatePlanimetryOptions() {
       const count = parseInt(document.getElementById('participantCount').value) || 0;
       const select = document.getElementById('gridPreset');
@@ -202,23 +200,17 @@
       }
 
       const options = [];
-      // Buscar combinaciones comunes de columnas entre 6 y 16
       for (let cols = 6; cols <= 16; cols++) {
         let rows = Math.ceil(count / cols);
         let capacity = rows * cols;
         let remainder = capacity - count;
 
         let label = `${rows} Filas x ${cols} Columnas (${capacity} sillas`;
-        if (remainder === 0) {
-          label += ` - Exacto)`;
-        } else {
-          label += ` - sobran ${remainder} puestos en última fila)`;
-        }
+        label += (remainder === 0) ? ` - Exacto)` : ` - sobran ${remainder} puestos en última fila)`;
 
         options.push({ rows, cols, label, exact: remainder === 0 });
       }
 
-      // Ordenar priorizando cuadrículas más cuadradas o exactas
       options.sort((a,b) => (a.exact ? -1 : 1) || Math.abs(a.rows - a.cols) - Math.abs(b.rows - b.cols));
 
       options.forEach((opt, idx) => {
@@ -243,7 +235,7 @@
       selectedRows = r;
       selectedCols = c;
 
-      showStatus('Cargando participantes y aplicando reglas de asignación...');
+      showStatus('Cargando participantes y organizando la acomodación...');
 
       try {
         const response = await fetch(getCsvUrl(urlInput));
@@ -289,93 +281,77 @@
     }
 
     function allocateSeats(participants) {
-      // 1. Clasificar y ordenar ascendentemente por edad
-      let fem = participants.filter(d => d.sexo.toLowerCase() === 'femenino').sort((a,b) => a.edad - b.edad);
-      let mas = participants.filter(d => d.sexo.toLowerCase() === 'masculino').sort((a,b) => a.edad - b.edad);
+      // 1. ORDENAR ESTRICTAMENTE POR EDAD ASCENDENTE (Menores a Mayores)
+      const sortedByAge = [...participants].sort((a, b) => a.edad - b.edad);
 
       document.getElementById('statTotal').innerText = participants.length;
-      document.getElementById('statFem').innerText = fem.length;
-      document.getElementById('statMas').innerText = mas.length;
+      document.getElementById('statFem').innerText = participants.filter(d => d.sexo.toLowerCase() === 'femenino').length;
+      document.getElementById('statMas').innerText = participants.filter(d => d.sexo.toLowerCase() === 'masculino').length;
       document.getElementById('statPairs').innerText = Math.floor(participants.length / 2);
 
-      // 2. Crear parejas consecutivas verticales (mismo género y edad cercana)
-      function makePairs(list) {
-        let pairs = [];
-        for (let i = 0; i < list.length; i += 2) {
-          if (i + 1 < list.length) {
-            pairs.push({ p1: list[i], p2: list[i+1], avgAge: (list[i].edad + list[i+1].edad) / 2, sexo: list[i].sexo });
-          } else {
-            pairs.push({ p1: list[i], p2: null, avgAge: list[i].edad, sexo: list[i].sexo });
-          }
-        }
-        return pairs;
-      }
+      const grid = Array.from({ length: selectedRows }, () => Array(selectedCols).fill(null));
+      let idx = 0;
 
-      let femPairs = makePairs(fem);
-      let masPairs = makePairs(mas);
+      // 2. PROCESAR POR BLOQUES DE 2 FILAS CONSECUTIVAS (Ej. Filas A y B, C y D, etc.)
+      for (let rStart = 0; rStart < selectedRows; rStart += 2) {
+        let r1 = rStart;
+        let r2 = (rStart + 1 < selectedRows) ? rStart + 1 : null;
 
-      // Mezclar parejas ordenándolas estrictamente por edad (menores primero)
-      let allPairs = [...femPairs, ...masPairs].sort((a,b) => a.avgAge - b.avgAge);
+        // Capacidad del bloque actual
+        let blockCapacity = (r2 !== null) ? selectedCols * 2 : selectedCols;
+        let blockPeople = sortedByAge.slice(idx, idx + blockCapacity);
+        idx += blockCapacity;
 
-      // Matriz de sillas
-      let gridMapArray = Array.from({ length: selectedRows }, () => Array(selectedCols).fill(null));
-      let assignedList = [];
+        if (blockPeople.length === 0) break;
 
-      // Asignación por parejas en columna (ej. C1-D1, C2-D2)
-      let currentCol = 0;
-      let currentRow = 0;
+        // Separar por género dentro del grupo de edad actual
+        let fList = blockPeople.filter(p => p.sexo.toLowerCase() === 'femenino');
+        let mList = blockPeople.filter(p => p.sexo.toLowerCase() === 'masculino');
 
-      for (let pair of allPairs) {
-        // Buscar siguiente celda vertical libre
-        while (currentCol < selectedCols && gridMapArray[currentRow][currentCol] !== null) {
-          currentRow++;
-          if (currentRow >= selectedRows) {
-            currentRow = 0;
-            currentCol++;
-          }
-        }
+        for (let c = 0; c < selectedCols; c++) {
+          let desiredGender = (c % 2 === 0) ? 'femenino' : 'masculino';
 
-        if (currentCol >= selectedCols) break;
-
-        // Asignar primer integrante
-        let r1 = currentRow;
-        let c1 = currentCol;
-        let letter1 = String.fromCharCode(65 + r1);
-        pair.p1.silla = `${letter1}${c1 + 1}`;
-        pair.p1.row = r1;
-        pair.p1.col = c1;
-        gridMapArray[r1][c1] = pair.p1;
-        assignedList.push(pair.p1);
-
-        // Asignar segundo integrante en la silla inmediatamente inferior (misma columna)
-        if (pair.p2) {
-          let r2 = r1 + 1;
-          let c2 = c1;
-
-          // Si llegamos al final de la columna, colocarlo en la primera fila de la siguiente columna
-          if (r2 >= selectedRows) {
-            r2 = 0;
-            c2 = c1 + 1;
+          function pickUpToTwo(primaryList, secondaryList) {
+            let picked = [];
+            let targetCount = (r2 !== null) ? 2 : 1;
+            while (picked.length < targetCount) {
+              if (primaryList.length > 0) picked.push(primaryList.shift());
+              else if (secondaryList.length > 0) picked.push(secondaryList.shift());
+              else break;
+            }
+            return picked;
           }
 
-          if (c2 < selectedCols) {
-            let letter2 = String.fromCharCode(65 + r2);
-            pair.p2.silla = `${letter2}${c2 + 1}`;
-            pair.p2.row = r2;
-            pair.p2.col = c2;
-            gridMapArray[r2][c2] = pair.p2;
-            assignedList.push(pair.p2);
-          }
-        }
+          let pair = (desiredGender === 'femenino') ? pickUpToTwo(fList, mList) : pickUpToTwo(mList, fList);
 
-        currentRow += 2;
-        if (currentRow >= selectedRows) {
-          currentRow = 0;
-          currentCol++;
+          // Asignar primer integrante en la Fila Superior (ej. A1, C1)
+          if (pair.length >= 1) {
+            let p1 = pair[0];
+            p1.row = r1;
+            p1.col = c;
+            p1.silla = `${String.fromCharCode(65 + r1)}${c + 1}`;
+            grid[r1][c] = p1;
+          }
+
+          // Asignar segundo integrante en la Fila Inferior (ej. B1, D1) - Pareja de líder vertical
+          if (pair.length === 2 && r2 !== null) {
+            let p2 = pair[1];
+            p2.row = r2;
+            p2.col = c;
+            p2.silla = `${String.fromCharCode(65 + r2)}${c + 1}`;
+            grid[r2][c] = p2;
+          }
         }
       }
 
-      // Optimización de distancia para familiares presentes
+      // 3. SEPARACIÓN DE FAMILIARES DENTRO DEL MISMO BLOQUE DE EDAD Y GÉNERO
+      const assignedList = [];
+      for (let r = 0; r < selectedRows; r++) {
+        for (let c = 0; c < selectedCols; c++) {
+          if (grid[r][c] !== null) assignedList.push(grid[r][c]);
+        }
+      }
+
       for (let i = 0; i < assignedList.length; i++) {
         let p1 = assignedList[i];
         if (!p1.tieneFamiliar) continue;
@@ -384,26 +360,24 @@
           let p2 = assignedList[j];
           if (!p2.tieneFamiliar) continue;
 
-          // Si quedaron en la misma fila o muy cercanos
-          if (Math.abs(p1.row - p2.row) <= 1 && p1.sexo === p2.sexo) {
-            // Swap con alguien de edad similar más lejano sin familiar
-            for (let k = assignedList.length - 1; k > j; k--) {
+          // Distancia de Manhattan entre sillas
+          let dist = Math.abs(p1.row - p2.row) + Math.abs(p1.col - p2.col);
+          if (dist <= 2) {
+            // Intercambiar p2 con otra persona del mismo género y edad cercana sin familiares
+            for (let k = assignedList.length - 1; k >= 0; k--) {
               let candidate = assignedList[k];
-              if (candidate.sexo === p1.sexo && !candidate.tieneFamiliar && Math.abs(candidate.row - p1.row) > 2) {
-                let tempSeat = p2.silla;
-                let tempRow = p2.row;
-                let tempCol = p2.col;
+              if (candidate.sexo.toLowerCase() === p2.sexo.toLowerCase() &&
+                  !candidate.tieneFamiliar &&
+                  Math.abs(candidate.row - p1.row) + Math.abs(candidate.col - p1.col) > 2) {
+                
+                let r2 = p2.row, c2 = p2.col, silla2 = p2.silla;
+                let rk = candidate.row, ck = candidate.col, sillaK = candidate.silla;
 
-                p2.silla = candidate.silla;
-                p2.row = candidate.row;
-                p2.col = candidate.col;
+                p2.row = rk; p2.col = ck; p2.silla = sillaK;
+                candidate.row = r2; candidate.col = c2; candidate.silla = silla2;
 
-                candidate.silla = tempSeat;
-                candidate.row = tempRow;
-                candidate.col = tempCol;
-
-                assignedList[j] = candidate;
-                assignedList[k] = p2;
+                grid[r2][c2] = candidate;
+                grid[rk][ck] = p2;
                 break;
               }
             }
@@ -412,23 +386,17 @@
       }
 
       globalAssignedData = assignedList;
-      renderGridMap();
+      renderGridMap(grid);
     }
 
-    function renderGridMap() {
+    function renderGridMap(grid) {
       const gridMap = document.getElementById('gridMap');
       gridMap.innerHTML = '';
       gridMap.style.gridTemplateColumns = `repeat(${selectedCols}, minmax(115px, 1fr))`;
 
-      // Crear mapa rápido por posición
-      const seatMap = {};
-      globalAssignedData.forEach(item => {
-        seatMap[`${item.row}_${item.col}`] = item;
-      });
-
       for (let r = 0; r < selectedRows; r++) {
         for (let c = 0; c < selectedCols; c++) {
-          const item = seatMap[`${r}_${c}`];
+          const item = grid[r][c];
           const div = document.createElement('div');
           
           if (item) {
@@ -443,7 +411,6 @@
               <div class="text-[10px] opacity-80">${item.edad} años | ${item.sexo[0]}</div>
             `;
           } else {
-            // Silla vacía
             let letter = String.fromCharCode(65 + r);
             div.className = `border border-dashed border-slate-300 rounded-lg p-2 text-center text-xs text-slate-400 bg-slate-50 flex items-center justify-center`;
             div.innerHTML = `<span>${letter}${c+1}<br>(Vacía)</span>`;
@@ -467,7 +434,7 @@
 
       const ws = XLSX.utils.aoa_to_sheet(exportData);
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Sillas Retiro");
+      XLSX.utils.book_append_sheet(wb, ws, "Acomodación Sillas");
 
       XLSX.writeFile(wb, "Acomodacion_Retiro_Espiritual.xlsx");
     }
