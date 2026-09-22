@@ -3,17 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Asignación de Sillas y Acomodación - Retiro Espiritual</title>
-  <!-- Tailwind CSS CDN -->
+  <title>Asignación de Sillas y Planimetría - Retiro Espiritual</title>
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- SheetJS CDN para exportar archivos Excel -->
+  <!-- SheetJS para exportar a Excel -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     .chair {
       transition: all 0.2s ease;
     }
     .chair:hover {
-      transform: scale(1.08);
+      transform: scale(1.06);
       z-index: 10;
     }
   </style>
@@ -24,7 +24,7 @@
     <!-- Header -->
     <header class="bg-indigo-900 text-white rounded-xl p-6 shadow-lg">
       <h1 class="text-2xl md:text-3xl font-bold">Gestión de Acomodación y Sillas - Retiro Espiritual</h1>
-      <p class="text-indigo-200 text-sm mt-1">Asignación optimizada por edad, alternancia de género, parejas de líderes y dispersión de familiares.</p>
+      <p class="text-indigo-200 text-sm mt-1">Parejas verticales por líder (mismo género y edad similar), menores adelante (Fila A) y planimetría dinámica.</p>
     </header>
 
     <!-- Formularios y Controles -->
@@ -32,41 +32,40 @@
       
       <div class="lg:col-span-2 space-y-4">
         <div>
-          <label class="block text-sm font-semibold text-gray-700 mb-1">Enlace público de la Google Sheet / CSV:</label>
+          <label class="block text-sm font-semibold text-gray-700 mb-1">Enlace público de Google Sheets / CSV:</label>
           <input id="sheetUrl" type="text" 
             class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
             value="https://docs.google.com/spreadsheets/d/1k3p0YhVaFlGYwpUwo5k4pS28oW4h29HKqWOxFh2HE_k/edit?usp=sharing">
-          <p class="text-xs text-gray-500 mt-1">Asegúrate de que la hoja esté configurada como "Cualquier persona con el enlace puede ver".</p>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1">Distribución del Salón (Filas x Sillas por Fila):</label>
-            <select id="gridPreset" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-              <option value="auto">Auto (Calcular según participantes)</option>
-              <option value="12x8">12 Filas x 8 Columnas (96 Sillas)</option>
-              <option value="8x12">8 Filas x 12 Columnas (96 Sillas)</option>
-              <option value="16x6">16 Filas x 6 Columnas (96 Sillas)</option>
-              <option value="10x10">10 Filas x 10 Columnas (100 Sillas)</option>
-              <option value="14x6">14 Filas x 6 Columnas (84 Sillas)</option>
-            </select>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">Número de Participantes:</label>
+            <div class="flex gap-2">
+              <input id="participantCount" type="number" placeholder="Ej: 100" 
+                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                oninput="updatePlanimetryOptions()">
+              <button onclick="detectParticipantCount()" class="bg-slate-200 hover:bg-slate-300 text-xs font-semibold px-3 py-2 rounded-lg transition">
+                Cargar de Hoja
+              </button>
+            </div>
           </div>
 
           <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1">Cortes por Fila (Custom):</label>
-            <div class="flex gap-2">
-              <input id="customCols" type="number" placeholder="Sillas por fila" value="12" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-            </div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">Opciones de Planimetría del Salón:</label>
+            <select id="gridPreset" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+              <option value="">-- Ingresa número de participantes primero --</option>
+            </select>
           </div>
         </div>
       </div>
 
       <div class="flex flex-col justify-end space-y-3 bg-indigo-50 p-4 rounded-xl border border-indigo-100">
         <button id="btnProcess" onclick="processAllocation()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-lg shadow transition">
-          🚀 Procesar y Acomodar
+          🚀 Generar Acomodación
         </button>
         <button id="btnExportExcel" onclick="exportToExcel()" disabled class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-4 rounded-lg shadow disabled:opacity-50 disabled:cursor-not-allowed transition">
-          📊 Descargar Excel Con Sillas
+          📊 Descargar Excel Con Columna SILLA
         </button>
       </div>
     </div>
@@ -77,7 +76,7 @@
     <!-- Resultados y Estadísticas -->
     <div id="statsBox" class="hidden grid grid-cols-2 md:grid-cols-4 gap-4">
       <div class="bg-white p-4 rounded-xl shadow text-center border-t-4 border-indigo-500">
-        <p class="text-xs text-gray-500 uppercase font-semibold">Participantes</p>
+        <p class="text-xs text-gray-500 uppercase font-semibold">Participantes Procesados</p>
         <p id="statTotal" class="text-2xl font-bold text-gray-800">0</p>
       </div>
       <div class="bg-white p-4 rounded-xl shadow text-center border-t-4 border-pink-500">
@@ -89,25 +88,28 @@
         <p id="statMas" class="text-2xl font-bold text-gray-800">0</p>
       </div>
       <div class="bg-white p-4 rounded-xl shadow text-center border-t-4 border-amber-500">
-        <p class="text-xs text-gray-500 uppercase font-semibold">Familias Detectadas</p>
-        <p id="statFam" class="text-2xl font-bold text-gray-800">0</p>
+        <p class="text-xs text-gray-500 uppercase font-semibold">Parejas de Líder</p>
+        <p id="statPairs" class="text-2xl font-bold text-gray-800">0</p>
       </div>
     </div>
 
     <!-- Visualizador de Plano Grafico -->
     <div id="planContainer" class="hidden bg-white rounded-xl shadow p-6 space-y-4">
       <div class="flex flex-col md:flex-row justify-between items-center gap-4 border-b pb-4">
-        <h2 class="text-xl font-bold text-gray-800">Plano Gráfico de Acomodación del Salón</h2>
+        <div>
+          <h2 class="text-xl font-bold text-gray-800">Plano Gráfico de Ubicación en el Salón</h2>
+          <p class="text-xs text-gray-500">Fila A (Menores de edad adelante) ➔ Filas traseras (Mayores). Las parejas seguidas en columna comparten líder.</p>
+        </div>
         <div class="flex items-center gap-4 text-xs font-medium">
           <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-pink-100 border border-pink-400 inline-block"></span> Femenino</span>
           <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-blue-100 border border-blue-400 inline-block"></span> Masculino</span>
-          <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-amber-300 border border-amber-500 inline-block"></span> Familiar Presente</span>
+          <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-amber-200 border border-amber-500 inline-block"></span> Familiar Presente</span>
         </div>
       </div>
 
       <!-- Escenario / Tarima -->
-      <div class="w-full bg-slate-800 text-white text-center py-2 rounded-md text-xs font-bold tracking-widest uppercase">
-        Escenario / Tarima
+      <div class="w-full bg-slate-800 text-white text-center py-2 rounded-md text-xs font-bold tracking-widest uppercase shadow">
+        Escenario / Tarima (Fila A - Menores de edad)
       </div>
 
       <!-- Grid interactivo -->
@@ -118,20 +120,16 @@
   </div>
 
   <script>
-    let globalData = [];
+    let rawLoadedData = [];
     let globalAssignedData = [];
-    let gridCols = 12;
+    let selectedRows = 0;
+    let selectedCols = 0;
 
-    // Convertir enlace de Google Sheets a export CSV directo
     function getCsvUrl(url) {
       const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
-      if (match && match[1]) {
-        return `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=csv`;
-      }
-      return url;
+      return (match && match[1]) ? `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=csv` : url;
     }
 
-    // Parser manual básico para CSV respetando comillas
     function parseCSV(text) {
       const lines = [];
       let row = [];
@@ -172,70 +170,113 @@
       box.innerText = msg;
     }
 
-    async function processAllocation() {
+    async function detectParticipantCount() {
       const urlInput = document.getElementById('sheetUrl').value.trim();
-      if (!urlInput) {
-        showStatus('Por favor ingresa un enlace de Google Sheets válido.', true);
+      if (!urlInput) return showStatus('Ingresa un enlace de la tabla.', true);
+
+      showStatus('Leyendo número de registros en la hoja...');
+      try {
+        const response = await fetch(getCsvUrl(urlInput));
+        const text = await response.text();
+        const rows = parseCSV(text);
+        
+        // Descontar la fila de encabezado
+        const count = Math.max(0, rows.length - 1);
+        document.getElementById('participantCount').value = count;
+        updatePlanimetryOptions();
+        showStatus(`Se detectaron ${count} participantes registrados.`);
+      } catch (err) {
+        showStatus('Error al leer el archivo: ' + err.message, true);
+      }
+    }
+
+    // Calcula automáticamente opciones de cuadrícula (filas x columnas) según la cantidad
+    function updatePlanimetryOptions() {
+      const count = parseInt(document.getElementById('participantCount').value) || 0;
+      const select = document.getElementById('gridPreset');
+      select.innerHTML = '';
+
+      if (count <= 0) {
+        select.innerHTML = '<option value="">-- Ingresa un número mayor a 0 --</option>';
         return;
       }
 
-      showStatus('Cargando y procesando datos de la tabla...');
+      const options = [];
+      // Buscar combinaciones comunes de columnas entre 6 y 16
+      for (let cols = 6; cols <= 16; cols++) {
+        let rows = Math.ceil(count / cols);
+        let capacity = rows * cols;
+        let remainder = capacity - count;
+
+        let label = `${rows} Filas x ${cols} Columnas (${capacity} sillas`;
+        if (remainder === 0) {
+          label += ` - Exacto)`;
+        } else {
+          label += ` - sobran ${remainder} puestos en última fila)`;
+        }
+
+        options.push({ rows, cols, label, exact: remainder === 0 });
+      }
+
+      // Ordenar priorizando cuadrículas más cuadradas o exactas
+      options.sort((a,b) => (a.exact ? -1 : 1) || Math.abs(a.rows - a.cols) - Math.abs(b.rows - b.cols));
+
+      options.forEach((opt, idx) => {
+        const el = document.createElement('option');
+        el.value = `${opt.rows}x${opt.cols}`;
+        el.innerText = opt.label;
+        if (idx === 0) el.selected = true;
+        select.appendChild(el);
+      });
+    }
+
+    async function processAllocation() {
+      const urlInput = document.getElementById('sheetUrl').value.trim();
+      const preset = document.getElementById('gridPreset').value;
+
+      if (!urlInput || !preset) {
+        showStatus('Por favor especifica el enlace y una opción de planimetría.', true);
+        return;
+      }
+
+      const [r, c] = preset.split('x').map(Number);
+      selectedRows = r;
+      selectedCols = c;
+
+      showStatus('Cargando participantes y aplicando reglas de asignación...');
 
       try {
-        const csvUrl = getCsvUrl(urlInput);
-        const response = await fetch(csvUrl);
-        if (!response.ok) throw new Error('No se pudo acceder al enlace especificado.');
-        
-        const csvText = await response.text();
-        const rows = parseCSV(csvText);
+        const response = await fetch(getCsvUrl(urlInput));
+        const text = await response.text();
+        const rows = parseCSV(text);
 
         if (rows.length < 2) {
-          showStatus('La tabla no contiene datos suficientes.', true);
+          showStatus('La tabla no contiene participantes suficientes.', true);
           return;
         }
 
-        const headers = rows[0];
-        const rawData = [];
-
+        const data = [];
         for (let i = 1; i < rows.length; i++) {
           const r = rows[i];
           if (!r || r.length < 5) continue;
-          
-          // Mapeo flexible de columnas clave
-          const nombre1 = r[1] || '';
-          const nombre2 = r[2] || '';
-          const apellido1 = r[3] || '';
-          const apellido2 = r[4] || '';
-          const nombreCompleto = `${nombre1} ${nombre2} ${apellido1} ${apellido2}`.replace(/\s+/g, ' ').trim();
-          
+
+          const nombreCompleto = `${r[1]||''} ${r[2]||''} ${r[3]||''} ${r[4]||''}`.replace(/\s+/g, ' ').trim();
           const edad = parseInt(r[8]) || 0;
           const sexo = (r[11] || '').trim();
           const tieneFamiliar = (r[14] || '').trim().toUpperCase() === 'SI';
-          const familiarNom = `${r[15]||''} ${r[16]||''} ${r[17]||''} ${r[18]||''}`.replace(/\s+/g, ' ').trim();
 
-          rawData.push({
+          data.push({
             rawRow: r,
             nombreCompleto,
             edad,
             sexo,
             tieneFamiliar,
-            familiarNom,
             id: i
           });
         }
 
-        globalData = rawData;
-
-        // Configurar la grilla de columnas
-        const preset = document.getElementById('gridPreset').value;
-        if (preset !== 'auto') {
-          gridCols = parseInt(preset.split('x')[1]);
-        } else {
-          gridCols = parseInt(document.getElementById('customCols').value) || 12;
-        }
-
-        // Algoritmo de asignación
-        allocateSeats();
+        rawLoadedData = rows;
+        allocateSeats(data);
 
         showStatus('Acomodación generada exitosamente.');
         document.getElementById('btnExportExcel').disabled = false;
@@ -243,67 +284,112 @@
         document.getElementById('planContainer').classList.remove('hidden');
 
       } catch (err) {
-        showStatus('Error procesando los datos: ' + err.message, true);
+        showStatus('Error procesando: ' + err.message, true);
       }
     }
 
-    function allocateSeats() {
-      // 1. Separar por género y ordenar ascendentemente por edad
-      let fem = globalData.filter(d => d.sexo.toLowerCase() === 'femenino').sort((a,b) => a.edad - b.edad);
-      let mas = globalData.filter(d => d.sexo.toLowerCase() === 'masculino').sort((a,b) => a.edad - b.edad);
+    function allocateSeats(participants) {
+      // 1. Clasificar y ordenar ascendentemente por edad
+      let fem = participants.filter(d => d.sexo.toLowerCase() === 'femenino').sort((a,b) => a.edad - b.edad);
+      let mas = participants.filter(d => d.sexo.toLowerCase() === 'masculino').sort((a,b) => a.edad - b.edad);
 
-      document.getElementById('statTotal').innerText = globalData.length;
+      document.getElementById('statTotal').innerText = participants.length;
       document.getElementById('statFem').innerText = fem.length;
       document.getElementById('statMas').innerText = mas.length;
-      document.getElementById('statFam').innerText = globalData.filter(d => d.tieneFamiliar).length;
+      document.getElementById('statPairs').innerText = Math.floor(participants.length / 2);
 
-      // Unir alternando columnas por géneros en parejas (2 por líder)
-      let allocated = [];
-      let fIdx = 0, mIdx = 0;
-      let total = globalData.length;
-
-      // Determinar estructura de asientos
-      for (let i = 0; i < total; i++) {
-        let col = i % gridCols;
-        let isFemCol = (Math.floor(col / 2) % 2 === 0);
-
-        let person = null;
-        if (isFemCol && fIdx < fem.length) {
-          person = fem[fIdx++];
-        } else if (!isFemCol && mIdx < mas.length) {
-          person = mas[mIdx++];
-        } else {
-          // Si una lista se agota, usar la otra disponible
-          person = fIdx < fem.length ? fem[fIdx++] : mas[mIdx++];
+      // 2. Crear parejas consecutivas verticales (mismo género y edad cercana)
+      function makePairs(list) {
+        let pairs = [];
+        for (let i = 0; i < list.length; i += 2) {
+          if (i + 1 < list.length) {
+            pairs.push({ p1: list[i], p2: list[i+1], avgAge: (list[i].edad + list[i+1].edad) / 2, sexo: list[i].sexo });
+          } else {
+            pairs.push({ p1: list[i], p2: null, avgAge: list[i].edad, sexo: list[i].sexo });
+          }
         }
-
-        let rowIndex = Math.floor(i / gridCols);
-        let colIndex = i % gridCols;
-        let letter = String.fromCharCode(65 + rowIndex); // A, B, C...
-        let seatTag = `${letter}${colIndex + 1}`;
-
-        person.silla = seatTag;
-        person.row = rowIndex;
-        person.col = colIndex;
-        allocated.push(person);
+        return pairs;
       }
 
-      // Optimización de distancia para familiares (intercambiar dentro del mismo género si se detecta cercanía)
-      for (let i = 0; i < allocated.length; i++) {
-        let p1 = allocated[i];
+      let femPairs = makePairs(fem);
+      let masPairs = makePairs(mas);
+
+      // Mezclar parejas ordenándolas estrictamente por edad (menores primero)
+      let allPairs = [...femPairs, ...masPairs].sort((a,b) => a.avgAge - b.avgAge);
+
+      // Matriz de sillas
+      let gridMapArray = Array.from({ length: selectedRows }, () => Array(selectedCols).fill(null));
+      let assignedList = [];
+
+      // Asignación por parejas en columna (ej. C1-D1, C2-D2)
+      let currentCol = 0;
+      let currentRow = 0;
+
+      for (let pair of allPairs) {
+        // Buscar siguiente celda vertical libre
+        while (currentCol < selectedCols && gridMapArray[currentRow][currentCol] !== null) {
+          currentRow++;
+          if (currentRow >= selectedRows) {
+            currentRow = 0;
+            currentCol++;
+          }
+        }
+
+        if (currentCol >= selectedCols) break;
+
+        // Asignar primer integrante
+        let r1 = currentRow;
+        let c1 = currentCol;
+        let letter1 = String.fromCharCode(65 + r1);
+        pair.p1.silla = `${letter1}${c1 + 1}`;
+        pair.p1.row = r1;
+        pair.p1.col = c1;
+        gridMapArray[r1][c1] = pair.p1;
+        assignedList.push(pair.p1);
+
+        // Asignar segundo integrante en la silla inmediatamente inferior (misma columna)
+        if (pair.p2) {
+          let r2 = r1 + 1;
+          let c2 = c1;
+
+          // Si llegamos al final de la columna, colocarlo en la primera fila de la siguiente columna
+          if (r2 >= selectedRows) {
+            r2 = 0;
+            c2 = c1 + 1;
+          }
+
+          if (c2 < selectedCols) {
+            let letter2 = String.fromCharCode(65 + r2);
+            pair.p2.silla = `${letter2}${c2 + 1}`;
+            pair.p2.row = r2;
+            pair.p2.col = c2;
+            gridMapArray[r2][c2] = pair.p2;
+            assignedList.push(pair.p2);
+          }
+        }
+
+        currentRow += 2;
+        if (currentRow >= selectedRows) {
+          currentRow = 0;
+          currentCol++;
+        }
+      }
+
+      // Optimización de distancia para familiares presentes
+      for (let i = 0; i < assignedList.length; i++) {
+        let p1 = assignedList[i];
         if (!p1.tieneFamiliar) continue;
 
-        for (let j = i + 1; j < allocated.length; j++) {
-          let p2 = allocated[j];
+        for (let j = i + 1; j < assignedList.length; j++) {
+          let p2 = assignedList[j];
           if (!p2.tieneFamiliar) continue;
 
-          // Si están en la misma fila o muy cerca
-          if (p1.row === p2.row && p1.sexo === p2.sexo) {
-            // Intercambiar p2 con alguien más lejano del mismo género
-            for (let k = allocated.length - 1; k > j; k--) {
-              let candidate = allocated[k];
-              if (candidate.sexo === p1.sexo && !candidate.tieneFamiliar && candidate.row !== p1.row) {
-                // Swap sillas
+          // Si quedaron en la misma fila o muy cercanos
+          if (Math.abs(p1.row - p2.row) <= 1 && p1.sexo === p2.sexo) {
+            // Swap con alguien de edad similar más lejano sin familiar
+            for (let k = assignedList.length - 1; k > j; k--) {
+              let candidate = assignedList[k];
+              if (candidate.sexo === p1.sexo && !candidate.tieneFamiliar && Math.abs(candidate.row - p1.row) > 2) {
                 let tempSeat = p2.silla;
                 let tempRow = p2.row;
                 let tempCol = p2.col;
@@ -316,8 +402,8 @@
                 candidate.row = tempRow;
                 candidate.col = tempCol;
 
-                allocated[j] = candidate;
-                allocated[k] = p2;
+                assignedList[j] = candidate;
+                assignedList[k] = p2;
                 break;
               }
             }
@@ -325,51 +411,63 @@
         }
       }
 
-      globalAssignedData = allocated;
+      globalAssignedData = assignedList;
       renderGridMap();
     }
 
     function renderGridMap() {
       const gridMap = document.getElementById('gridMap');
       gridMap.innerHTML = '';
-      gridMap.style.gridTemplateColumns = `repeat(${gridCols}, minmax(110px, 1fr))`;
+      gridMap.style.gridTemplateColumns = `repeat(${selectedCols}, minmax(115px, 1fr))`;
 
+      // Crear mapa rápido por posición
+      const seatMap = {};
       globalAssignedData.forEach(item => {
-        const div = document.createElement('div');
-        const isFem = item.sexo.toLowerCase() === 'femenino';
-        
-        let bgClass = isFem ? 'bg-pink-50 border-pink-300 text-pink-900' : 'bg-blue-50 border-blue-300 text-blue-900';
-        if (item.tieneFamiliar) {
-          bgClass = 'bg-amber-100 border-amber-400 text-amber-900';
-        }
-
-        div.className = `chair border rounded-lg p-2 text-center text-xs shadow-sm flex flex-col justify-between ${bgClass}`;
-        div.innerHTML = `
-          <div class="font-bold text-sm text-indigo-700">${item.silla}</div>
-          <div class="font-medium truncate my-1" title="${item.nombreCompleto}">${item.nombreCompleto}</div>
-          <div class="text-[10px] opacity-75">${item.edad} años | ${item.sexo[0]}</div>
-        `;
-        gridMap.appendChild(div);
+        seatMap[`${item.row}_${item.col}`] = item;
       });
+
+      for (let r = 0; r < selectedRows; r++) {
+        for (let c = 0; c < selectedCols; c++) {
+          const item = seatMap[`${r}_${c}`];
+          const div = document.createElement('div');
+          
+          if (item) {
+            const isFem = item.sexo.toLowerCase() === 'femenino';
+            let bgClass = isFem ? 'bg-pink-50 border-pink-300 text-pink-900' : 'bg-blue-50 border-blue-300 text-blue-900';
+            if (item.tieneFamiliar) bgClass = 'bg-amber-100 border-amber-400 text-amber-900';
+
+            div.className = `chair border rounded-lg p-2 text-center text-xs shadow-sm flex flex-col justify-between ${bgClass}`;
+            div.innerHTML = `
+              <div class="font-bold text-xs text-indigo-700">${item.silla}</div>
+              <div class="font-semibold text-[11px] truncate my-1" title="${item.nombreCompleto}">${item.nombreCompleto}</div>
+              <div class="text-[10px] opacity-80">${item.edad} años | ${item.sexo[0]}</div>
+            `;
+          } else {
+            // Silla vacía
+            let letter = String.fromCharCode(65 + r);
+            div.className = `border border-dashed border-slate-300 rounded-lg p-2 text-center text-xs text-slate-400 bg-slate-50 flex items-center justify-center`;
+            div.innerHTML = `<span>${letter}${c+1}<br>(Vacía)</span>`;
+          }
+          gridMap.appendChild(div);
+        }
+      }
     }
 
     function exportToExcel() {
       if (!globalAssignedData || globalAssignedData.length === 0) return;
 
-      // Construir nuevos datos agregando la columna SILLA
-      const exportData = globalAssignedData.map(item => {
-        const row = [...item.rawRow];
-        row.push(item.silla); // Columna SILLA al final
-        return row;
-      });
+      const headers = [...rawLoadedData[0], 'SILLA'];
+      const exportData = [headers];
 
-      // Encabezados con SILLA
-      const headers = [...globalData[0].rawRow, 'SILLA'];
-      exportData.unshift(headers);
+      globalAssignedData.forEach(item => {
+        const row = [...item.rawRow];
+        row.push(item.silla);
+        exportData.push(row);
+      });
 
       const ws = XLSX.utils.aoa_to_sheet(exportData);
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Acomodación Sillas");
+      XLSX.utils.book_append_sheet(wb, ws, "Sillas Retiro");
 
       XLSX.writeFile(wb, "Acomodacion_Retiro_Espiritual.xlsx");
     }
