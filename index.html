@@ -11,10 +11,19 @@
   <style>
     .chair {
       transition: all 0.2s ease;
+      cursor: grab;
+    }
+    .chair:active {
+      cursor: grabbing;
     }
     .chair:hover {
       transform: scale(1.06);
       z-index: 10;
+    }
+    .drag-over {
+      border: 2px dashed #6366f1 !important;
+      background-color: #e0e7ff !important;
+      transform: scale(1.08);
     }
   </style>
 </head>
@@ -24,7 +33,7 @@
     <!-- Header -->
     <header class="bg-indigo-900 text-white rounded-xl p-6 shadow-lg">
       <h1 class="text-2xl md:text-3xl font-bold">Gestión de Acomodación y Sillas - Retiro Espiritual</h1>
-      <p class="text-indigo-200 text-sm mt-1">Orden por edad estrictamente ascendente (Menores en Fila A), parejas verticales por líder (mismo género) y alternancia por columna.</p>
+      <p class="text-indigo-200 text-sm mt-1">Orden por edad ascendente (Fila A menores), parejas de líderes y reacomodación manual mediante arrastrar y soltar (Drag & Drop).</p>
     </header>
 
     <!-- Formularios y Controles -->
@@ -88,8 +97,8 @@
         <p id="statMas" class="text-2xl font-bold text-gray-800">0</p>
       </div>
       <div class="bg-white p-4 rounded-xl shadow text-center border-t-4 border-amber-500">
-        <p class="text-xs text-gray-500 uppercase font-semibold">Parejas de Líder</p>
-        <p id="statPairs" class="text-2xl font-bold text-gray-800">0</p>
+        <p class="text-xs text-gray-500 uppercase font-semibold">Familiares Dispersados</p>
+        <p id="statFam" class="text-2xl font-bold text-gray-800">0</p>
       </div>
     </div>
 
@@ -98,7 +107,7 @@
       <div class="flex flex-col md:flex-row justify-between items-center gap-4 border-b pb-4">
         <div>
           <h2 class="text-xl font-bold text-gray-800">Plano Gráfico de Ubicación en el Salón</h2>
-          <p class="text-xs text-gray-500">Fila A (Menores de edad) ➔ Filas traseras (Mayores). Las parejas verticales consecutivas (ej. A1-B1, C2-D2) comparten líder.</p>
+          <p class="text-xs text-gray-500">Puedes <strong>arrastrar y soltar</strong> cualquier casilla a discreción para mover o intercambiar posiciones de sillas.</p>
         </div>
         <div class="flex items-center gap-4 text-xs font-medium">
           <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-pink-100 border border-pink-400 inline-block"></span> Femenino</span>
@@ -122,6 +131,7 @@
   <script>
     let rawLoadedData = [];
     let globalAssignedData = [];
+    let currentGrid = [];
     let selectedRows = 0;
     let selectedCols = 0;
 
@@ -222,6 +232,23 @@
       });
     }
 
+    function buildFamilyGroups(participants) {
+      let famMap = {};
+      let groupCount = 1;
+
+      participants.forEach(p => {
+        if (p.tieneFamiliar) {
+          let key = p.rawRow[3] ? p.rawRow[3].trim().toLowerCase() : '';
+          if (!key || key.length < 3) key = p.familiarNom.toLowerCase().trim();
+
+          if (!famMap[key]) famMap[key] = groupCount++;
+          p.familyId = famMap[key];
+        } else {
+          p.familyId = null;
+        }
+      });
+    }
+
     async function processAllocation() {
       const urlInput = document.getElementById('sheetUrl').value.trim();
       const preset = document.getElementById('gridPreset').value;
@@ -256,6 +283,7 @@
           const edad = parseInt(r[8]) || 0;
           const sexo = (r[11] || '').trim();
           const tieneFamiliar = (r[14] || '').trim().toUpperCase() === 'SI';
+          const familiarNom = `${r[15]||''} ${r[16]||''} ${r[17]||''} ${r[18]||''}`.replace(/\s+/g, ' ').trim();
 
           data.push({
             rawRow: r,
@@ -263,14 +291,16 @@
             edad,
             sexo,
             tieneFamiliar,
+            familiarNom,
             id: i
           });
         }
 
         rawLoadedData = rows;
+        buildFamilyGroups(data);
         allocateSeats(data);
 
-        showStatus('Acomodación generada exitosamente.');
+        showStatus('Acomodación generada exitosamente. Puedes arrastrar y mover sillas manualmente.');
         document.getElementById('btnExportExcel').disabled = false;
         document.getElementById('statsBox').classList.remove('hidden');
         document.getElementById('planContainer').classList.remove('hidden');
@@ -281,30 +311,26 @@
     }
 
     function allocateSeats(participants) {
-      // 1. ORDENAR ESTRICTAMENTE POR EDAD ASCENDENTE (Menores a Mayores)
       const sortedByAge = [...participants].sort((a, b) => a.edad - b.edad);
 
       document.getElementById('statTotal').innerText = participants.length;
       document.getElementById('statFem').innerText = participants.filter(d => d.sexo.toLowerCase() === 'femenino').length;
       document.getElementById('statMas').innerText = participants.filter(d => d.sexo.toLowerCase() === 'masculino').length;
-      document.getElementById('statPairs').innerText = Math.floor(participants.length / 2);
+      document.getElementById('statFam').innerText = participants.filter(d => d.tieneFamiliar).length;
 
       const grid = Array.from({ length: selectedRows }, () => Array(selectedCols).fill(null));
       let idx = 0;
 
-      // 2. PROCESAR POR BLOQUES DE 2 FILAS CONSECUTIVAS (Ej. Filas A y B, C y D, etc.)
       for (let rStart = 0; rStart < selectedRows; rStart += 2) {
         let r1 = rStart;
         let r2 = (rStart + 1 < selectedRows) ? rStart + 1 : null;
 
-        // Capacidad del bloque actual
         let blockCapacity = (r2 !== null) ? selectedCols * 2 : selectedCols;
         let blockPeople = sortedByAge.slice(idx, idx + blockCapacity);
         idx += blockCapacity;
 
         if (blockPeople.length === 0) break;
 
-        // Separar por género dentro del grupo de edad actual
         let fList = blockPeople.filter(p => p.sexo.toLowerCase() === 'femenino');
         let mList = blockPeople.filter(p => p.sexo.toLowerCase() === 'masculino');
 
@@ -324,7 +350,6 @@
 
           let pair = (desiredGender === 'femenino') ? pickUpToTwo(fList, mList) : pickUpToTwo(mList, fList);
 
-          // Asignar primer integrante en la Fila Superior (ej. A1, C1)
           if (pair.length >= 1) {
             let p1 = pair[0];
             p1.row = r1;
@@ -333,7 +358,6 @@
             grid[r1][c] = p1;
           }
 
-          // Asignar segundo integrante en la Fila Inferior (ej. B1, D1) - Pareja de líder vertical
           if (pair.length === 2 && r2 !== null) {
             let p2 = pair[1];
             p2.row = r2;
@@ -344,7 +368,7 @@
         }
       }
 
-      // 3. SEPARACIÓN DE FAMILIARES DENTRO DEL MISMO BLOQUE DE EDAD Y GÉNERO
+      // Separación de familiares
       const assignedList = [];
       for (let r = 0; r < selectedRows; r++) {
         for (let c = 0; c < selectedCols; c++) {
@@ -360,16 +384,17 @@
           let p2 = assignedList[j];
           if (!p2.tieneFamiliar) continue;
 
-          // Distancia de Manhattan entre sillas
-          let dist = Math.abs(p1.row - p2.row) + Math.abs(p1.col - p2.col);
-          if (dist <= 2) {
-            // Intercambiar p2 con otra persona del mismo género y edad cercana sin familiares
+          let sameFamily = (p1.familyId && p2.familyId && p1.familyId === p2.familyId);
+          let manhattanDist = Math.abs(p1.row - p2.row) + Math.abs(p1.col - p2.col);
+
+          if (sameFamily || manhattanDist <= 3) {
             for (let k = assignedList.length - 1; k >= 0; k--) {
               let candidate = assignedList[k];
-              if (candidate.sexo.toLowerCase() === p2.sexo.toLowerCase() &&
-                  !candidate.tieneFamiliar &&
-                  Math.abs(candidate.row - p1.row) + Math.abs(candidate.col - p1.col) > 2) {
-                
+              
+              if (!candidate.tieneFamiliar &&
+                  candidate.sexo.toLowerCase() === p2.sexo.toLowerCase() &&
+                  (Math.abs(candidate.row - p1.row) + Math.abs(candidate.col - p1.col)) > 3) {
+
                 let r2 = p2.row, c2 = p2.col, silla2 = p2.silla;
                 let rk = candidate.row, ck = candidate.col, sillaK = candidate.silla;
 
@@ -385,35 +410,101 @@
         }
       }
 
-      globalAssignedData = assignedList;
-      renderGridMap(grid);
+      currentGrid = grid;
+      syncGlobalAssignedData();
+      renderGridMap();
     }
 
-    function renderGridMap(grid) {
+    function syncGlobalAssignedData() {
+      const list = [];
+      for (let r = 0; r < selectedRows; r++) {
+        for (let c = 0; c < selectedCols; c++) {
+          let item = currentGrid[r][c];
+          if (item) {
+            item.row = r;
+            item.col = c;
+            item.silla = `${String.fromCharCode(65 + r)}${c + 1}`;
+            list.push(item);
+          }
+        }
+      }
+      globalAssignedData = list;
+    }
+
+    // INTERACTIVIDAD DRAG AND DROP (Arrastrar y Soltar)
+    let draggedCoords = null;
+
+    function handleDragStart(e, r, c) {
+      draggedCoords = { r, c };
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', JSON.stringify({ r, c }));
+    }
+
+    function handleDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      e.currentTarget.classList.add('drag-over');
+    }
+
+    function handleDragLeave(e) {
+      e.currentTarget.classList.remove('drag-over');
+    }
+
+    function handleDrop(e, targetR, targetC) {
+      e.preventDefault();
+      e.currentTarget.classList.remove('drag-over');
+
+      if (!draggedCoords) return;
+      const srcR = draggedCoords.r;
+      const srcC = draggedCoords.c;
+
+      if (srcR === targetR && srcC === targetC) return;
+
+      // Intercambiar elementos en la matriz
+      const temp = currentGrid[srcR][srcC];
+      currentGrid[srcR][srcC] = currentGrid[targetR][targetC];
+      currentGrid[targetR][targetC] = temp;
+
+      syncGlobalAssignedData();
+      renderGridMap();
+      showStatus('Posición reacomodada manualmente.');
+    }
+
+    function renderGridMap() {
       const gridMap = document.getElementById('gridMap');
       gridMap.innerHTML = '';
       gridMap.style.gridTemplateColumns = `repeat(${selectedCols}, minmax(115px, 1fr))`;
 
       for (let r = 0; r < selectedRows; r++) {
         for (let c = 0; c < selectedCols; c++) {
-          const item = grid[r][c];
+          const item = currentGrid[r][c];
           const div = document.createElement('div');
           
+          let letter = String.fromCharCode(65 + r);
+          let seatTag = `${letter}${c + 1}`;
+
+          div.setAttribute('ondragover', 'handleDragOver(event)');
+          div.setAttribute('ondragleave', 'handleDragLeave(event)');
+          div.setAttribute('ondrop', `handleDrop(event, ${r}, ${c})`);
+
           if (item) {
+            item.silla = seatTag;
             const isFem = item.sexo.toLowerCase() === 'femenino';
             let bgClass = isFem ? 'bg-pink-50 border-pink-300 text-pink-900' : 'bg-blue-50 border-blue-300 text-blue-900';
-            if (item.tieneFamiliar) bgClass = 'bg-amber-100 border-amber-400 text-amber-900';
+            if (item.tieneFamiliar) bgClass = 'bg-amber-100 border-amber-400 text-amber-900 font-medium';
+
+            div.draggable = true;
+            div.setAttribute('ondragstart', `handleDragStart(event, ${r}, ${c})`);
 
             div.className = `chair border rounded-lg p-2 text-center text-xs shadow-sm flex flex-col justify-between ${bgClass}`;
             div.innerHTML = `
-              <div class="font-bold text-xs text-indigo-700">${item.silla}</div>
+              <div class="font-bold text-xs text-indigo-700">${seatTag}</div>
               <div class="font-semibold text-[11px] truncate my-1" title="${item.nombreCompleto}">${item.nombreCompleto}</div>
               <div class="text-[10px] opacity-80">${item.edad} años | ${item.sexo[0]}</div>
             `;
           } else {
-            let letter = String.fromCharCode(65 + r);
-            div.className = `border border-dashed border-slate-300 rounded-lg p-2 text-center text-xs text-slate-400 bg-slate-50 flex items-center justify-center`;
-            div.innerHTML = `<span>${letter}${c+1}<br>(Vacía)</span>`;
+            div.className = `border border-dashed border-slate-300 rounded-lg p-2 text-center text-xs text-slate-400 bg-slate-50 flex items-center justify-center transition`;
+            div.innerHTML = `<span>${seatTag}<br>(Vacía)</span>`;
           }
           gridMap.appendChild(div);
         }
