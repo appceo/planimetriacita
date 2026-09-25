@@ -1,714 +1,95 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Acomodación y Distribución de Sillas - Retiro Espiritual</title>
-  <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- SheetJS para exportar a Excel -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <!-- html2canvas para descargar el plano gráfico en PNG -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <style>
-    .chair {
-      transition: all 0.2s ease;
-      cursor: grab;
-    }
-    .chair:active {
-      cursor: grabbing;
-    }
-    .chair:hover {
-      transform: scale(1.06);
-      z-index: 10;
-    }
-    .drag-over {
-      border: 2px dashed #6366f1 !important;
-      background-color: #e0e7ff !important;
-      transform: scale(1.08);
-    }
-  </style>
-</head>
-<body class="bg-slate-100 min-h-screen text-slate-800 p-4 md:p-8">
-
-  <div class="max-w-7xl mx-auto space-y-6">
-    <!-- Header -->
-    <header class="bg-indigo-900 text-white rounded-xl p-6 shadow-lg">
-      <h1 class="text-2xl md:text-3xl font-bold">Gestión de Acomodación y Sillas - Retiro Espiritual</h1>
-      <p class="text-indigo-200 text-sm mt-1">Conteo exacto de género desde la columna Sexo (Femenino/Masculino), edad lineal ascendente y descarga Excel/PNG.</p>
-    </header>
-
-    <!-- Formularios y Controles -->
-    <div class="bg-white rounded-xl shadow p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-      
-      <div class="lg:col-span-2 space-y-4">
-        <div>
-          <label class="block text-sm font-semibold text-gray-700 mb-1">Enlace público de Google Sheets / CSV:</label>
-          <input id="sheetUrl" type="text" 
-            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-            value="https://docs.google.com/spreadsheets/d/1k3p0YhVaFlGYwpUwo5k4pS28oW4h29HKqWOxFh2HE_k/edit?usp=sharing">
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1">Número de Participantes:</label>
-            <div class="flex gap-2">
-              <input id="participantCount" type="number" placeholder="Ej: 96" 
-                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                oninput="updatePlanimetryOptions()">
-              <button onclick="detectParticipantCount()" class="bg-slate-200 hover:bg-slate-300 text-xs font-semibold px-3 py-2 rounded-lg transition whitespace-nowrap">
-                Autodetectar Hoja
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1">Opciones de Planimetría del Salón:</label>
-            <select id="gridPreset" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-              <option value="">-- Ingresa número de participantes primero --</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <div class="flex flex-col justify-end space-y-3 bg-indigo-50 p-4 rounded-xl border border-indigo-100">
-        <button id="btnProcess" onclick="processAllocation()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-lg shadow transition">
-          🚀 Generar Acomodación Exacta
-        </button>
-        <button id="btnExportExcel" onclick="exportToExcel()" disabled class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-4 rounded-lg shadow disabled:opacity-50 disabled:cursor-not-allowed transition">
-          📊 Descargar Excel Con Columna SILLA
-        </button>
-        <button id="btnExportImage" onclick="exportPlanToImage()" disabled class="w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold py-2.5 px-4 rounded-lg shadow disabled:opacity-50 disabled:cursor-not-allowed transition">
-          🖼️ Descargar Plano Gráfico (PNG)
-        </button>
-      </div>
+<!-- Formularios y Controles -->
+<div class="bg-white rounded-xl shadow p-4 grid grid-cols-1 lg:grid-cols-3 gap-4 text-xs">
+  
+  <div class="lg:col-span-2 space-y-3">
+    <div>
+      <label class="block font-semibold text-gray-700 mb-1">Enlace público de Google Sheets / CSV:</label>
+      <input id="sheetUrl" type="text" 
+        class="w-full border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+        value="https://docs.google.com/spreadsheets/d/1k3p0YhVaFlGYwpUwo5k4pS28oW4h29HKqWOxFh2HE_k/edit?usp=sharing">
     </div>
 
-    <!-- Mensajes de Estado / Errores -->
-    <div id="statusBox" class="hidden rounded-lg p-4 text-sm font-medium"></div>
-
-    <!-- Resultados y Estadísticas -->
-    <div id="statsBox" class="hidden grid grid-cols-2 md:grid-cols-4 gap-4">
-      <div class="bg-white p-4 rounded-xl shadow text-center border-t-4 border-indigo-500">
-        <p class="text-xs text-gray-500 uppercase font-semibold">Participantes Procesados</p>
-        <p id="statTotal" class="text-2xl font-bold text-gray-800">0</p>
-      </div>
-      <div class="bg-white p-4 rounded-xl shadow text-center border-t-4 border-pink-500">
-        <p class="text-xs text-gray-500 uppercase font-semibold">Femeninos</p>
-        <p id="statFem" class="text-2xl font-bold text-gray-800">0</p>
-      </div>
-      <div class="bg-white p-4 rounded-xl shadow text-center border-t-4 border-blue-500">
-        <p class="text-xs text-gray-500 uppercase font-semibold">Masculinos</p>
-        <p id="statMas" class="text-2xl font-bold text-gray-800">0</p>
-      </div>
-      <div class="bg-white p-4 rounded-xl shadow text-center border-t-4 border-amber-500">
-        <p class="text-xs text-gray-500 uppercase font-semibold">Familias Registradas</p>
-        <p id="statFam" class="text-2xl font-bold text-gray-800">0</p>
-      </div>
-    </div>
-
-    <!-- Visualizador de Plano Grafico -->
-    <div id="planContainer" class="hidden bg-white rounded-xl shadow p-6 space-y-6">
-      <div class="flex flex-col md:flex-row justify-between items-center gap-4 border-b pb-4">
-        <div>
-          <h2 class="text-xl font-bold text-gray-800">Plano Gráfico de Ubicación en el Salón</h2>
-          <p class="text-xs text-gray-500">
-            Fila A exclusiva para los participantes de menor edad. Género extraído con precisión absoluta.
-          </p>
-        </div>
-        <div class="flex items-center gap-4 text-xs font-medium">
-          <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-pink-100 border border-pink-400 inline-block"></span> Femenino</span>
-          <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-blue-100 border border-blue-400 inline-block"></span> Masculino</span>
-          <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-amber-200 border border-amber-500 inline-block"></span> Familiar (Color Exclusivo)</span>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div>
+        <label class="block font-semibold text-gray-700 mb-1">Número de Participantes:</label>
+        <div class="flex gap-2">
+          <input id="participantCount" type="number" placeholder="Ej: 96" 
+            class="w-full border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            oninput="updatePlanimetryOptions()">
+          <button onclick="detectParticipantCount()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold px-3 py-1.5 rounded-lg transition whitespace-nowrap">
+            Autodetectar
+          </button>
         </div>
       </div>
 
-      <!-- Leyenda Dinámica de Familias -->
-      <div id="familyLegend" class="flex flex-wrap gap-2 text-xs py-1"></div>
-
-      <!-- Escenario / Tarima -->
-      <div class="w-full bg-slate-800 text-white text-center py-2.5 rounded-md text-xs font-bold tracking-widest uppercase shadow">
-        Escenario / Tarima (Fila A - Menores de Edad)
-      </div>
-
-      <!-- Grid interactivo del Salón -->
-      <div class="overflow-x-auto py-2">
-        <div id="gridMap" class="inline-grid gap-2 min-w-full justify-center"></div>
-      </div>
-
-      <!-- ZONA DE BANCA / BANCO TEMPORAL -->
-      <div class="border-2 border-dashed border-amber-300 bg-amber-50/60 rounded-xl p-4 mt-6">
-        <div class="flex items-center justify-between mb-2">
-          <h3 class="text-sm font-bold text-amber-900 flex items-center gap-2">
-            🛋️ Banca Temporal / Mesa de Trabajo
-            <span class="text-xs font-normal text-amber-700">(Arrastra fichas aquí para liberar sillas temporalmente)</span>
-          </h3>
-          <span id="benchCount" class="text-xs font-semibold bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full">0 fichas en banca</span>
-        </div>
-        <div id="benchContainer" 
-             ondragover="handleDragOver(event)" 
-             ondragleave="handleDragLeave(event)" 
-             ondrop="handleDropToBench(event)"
-             class="min-h-[90px] border border-amber-200 rounded-lg bg-white p-3 flex flex-wrap gap-2 items-center">
-          <p id="benchPlaceholder" class="text-xs text-amber-400 italic w-full text-center">Arrastra aquí a cualquier participante para desocupar su silla temporalmente...</p>
-        </div>
+      <div>
+        <label class="block font-semibold text-gray-700 mb-1">Planimetría del Salón:</label>
+        <select id="gridPreset" class="w-full border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+          <option value="">-- Ingresa número de participantes --</option>
+        </select>
       </div>
     </div>
   </div>
 
-  <script>
-    let rawLoadedData = [];
-    let globalAssignedData = [];
-    let currentGrid = [];
-    let benchList = [];
-    let selectedRows = 0;
-    let selectedCols = 0;
-    let familyColorMap = {};
-
-    function getCsvUrl(url) {
-      const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
-      return (match && match[1]) ? `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=csv` : url;
-    }
-
-    function parseCSV(text) {
-      const lines = [];
-      let row = [];
-      let inQuotes = false;
-      let currentToken = '';
-
-      for (let i = 0; i < text.length; i++) {
-        const c = text[i];
-        const nextC = text[i+1];
-
-        if (c === '"') {
-          if (inQuotes && nextC === '"') { currentToken += '"'; i++; }
-          else { inQuotes = !inQuotes; }
-        } else if (c === ',' && !inQuotes) {
-          row.push(currentToken.trim());
-          currentToken = '';
-        } else if ((c === '\r' || c === '\n') && !inQuotes) {
-          if (c === '\r' && nextC === '\n') { i++; }
-          row.push(currentToken.trim());
-          if (row.length > 1 || row[0] !== '') lines.push(row);
-          row = [];
-          currentToken = '';
-        } else {
-          currentToken += c;
-        }
-      }
-      if (currentToken || row.length > 0) {
-        row.push(currentToken.trim());
-        lines.push(row);
-      }
-      return lines;
-    }
-
-    function showStatus(msg, isError = false) {
-      const box = document.getElementById('statusBox');
-      box.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'bg-blue-100', 'text-blue-700');
-      box.classList.add(isError ? 'bg-red-100' : 'bg-blue-100', isError ? 'text-red-700' : 'text-blue-700');
-      box.innerText = msg;
-    }
-
-    async function detectParticipantCount() {
-      const urlInput = document.getElementById('sheetUrl').value.trim();
-      if (!urlInput) return showStatus('Ingresa un enlace de la tabla.', true);
-
-      showStatus('Leyendo número de registros en la hoja...');
-      try {
-        const response = await fetch(getCsvUrl(urlInput));
-        const text = await response.text();
-        const rows = parseCSV(text);
-        
-        const count = Math.max(0, rows.length - 1);
-        document.getElementById('participantCount').value = count;
-        updatePlanimetryOptions();
-        showStatus(`Se detectaron ${count} participantes en la tabla.`);
-      } catch (err) {
-        showStatus('Error al leer el archivo: ' + err.message, true);
-      }
-    }
-
-    function updatePlanimetryOptions() {
-      const count = parseInt(document.getElementById('participantCount').value) || 0;
-      const select = document.getElementById('gridPreset');
-      select.innerHTML = '';
-
-      if (count <= 0) {
-        select.innerHTML = '<option value="">-- Ingresa un número mayor a 0 --</option>';
-        return;
-      }
-
-      const options = [];
-      for (let cols = 6; cols <= 16; cols++) {
-        let rows = Math.ceil(count / cols);
-        let capacity = rows * cols;
-        let remainder = capacity - count;
-
-        let label = `${rows} Filas x ${cols} Columnas (${capacity} sillas`;
-        label += (remainder === 0) ? ` - Exacto)` : ` - sobran ${remainder} puestos en última fila)`;
-
-        options.push({ rows, cols, label, exact: remainder === 0 });
-      }
-
-      options.sort((a,b) => (a.exact ? -1 : 1) || Math.abs(a.rows - a.cols) - Math.abs(b.rows - b.cols));
-
-      options.forEach((opt, idx) => {
-        const el = document.createElement('option');
-        el.value = `${opt.rows}x${opt.cols}`;
-        el.innerText = opt.label;
-        if (idx === 0) el.selected = true;
-        select.appendChild(el);
-      });
-    }
-
-    function generateUniqueColor(index, total) {
-      const hue = Math.round((index * (360 / Math.max(total, 1))) % 360);
-      return {
-        bg: `hsl(${hue}, 85%, 92%)`,
-        border: `hsl(${hue}, 70%, 45%)`,
-        text: `hsl(${hue}, 90%, 20%)`,
-        badgeBg: `hsl(${hue}, 80%, 82%)`
-      };
-    }
-
-    function buildFamilyGroups(participants) {
-      let famMap = {};
-      let familyList = [];
-
-      participants.forEach(p => {
-        if (p.tieneFamiliar) {
-          let key = p.rawRow[3] ? p.rawRow[3].trim().toLowerCase() : '';
-          if (!key || key.length < 3) key = p.familiarNom.toLowerCase().trim();
-
-          if (famMap[key] === undefined) {
-            let famName = p.rawRow[3] ? `Familia ${p.rawRow[3]}` : `Grupo ${key.toUpperCase()}`;
-            famMap[key] = {
-              id: Object.keys(famMap).length,
-              key: key,
-              name: famName
-            };
-            familyList.push(famMap[key]);
-          }
-          p.familyId = famMap[key].id;
-          p.familyName = famMap[key].name;
-        } else {
-          p.familyId = null;
-          p.familyName = null;
-        }
-      });
-
-      const totalFamilies = familyList.length;
-      familyColorMap = {};
-
-      familyList.forEach((fam, idx) => {
-        familyColorMap[fam.id] = {
-          name: fam.name,
-          color: generateUniqueColor(idx, totalFamilies)
-        };
-      });
-
-      renderFamilyLegend();
-    }
-
-    function renderFamilyLegend() {
-      const legend = document.getElementById('familyLegend');
-      legend.innerHTML = '';
-
-      Object.keys(familyColorMap).forEach(id => {
-        const fam = familyColorMap[id];
-        const span = document.createElement('span');
-        span.className = `px-2 py-1 rounded-md border text-xs font-bold shadow-sm`;
-        span.style.backgroundColor = fam.color.bg;
-        span.style.borderColor = fam.color.border;
-        span.style.color = fam.color.text;
-        span.innerText = fam.name;
-        legend.appendChild(span);
-      });
-    }
-
-    async function processAllocation() {
-      const urlInput = document.getElementById('sheetUrl').value.trim();
-      const preset = document.getElementById('gridPreset').value;
-
-      if (!urlInput || !preset) {
-        showStatus('Por favor especifica el enlace y una opción de planimetría.', true);
-        return;
-      }
-
-      const [r, c] = preset.split('x').map(Number);
-      selectedRows = r;
-      selectedCols = c;
-      benchList = [];
-
-      showStatus('Cargando participantes y organizando la acomodación...');
-
-      try {
-        const response = await fetch(getCsvUrl(urlInput));
-        const text = await response.text();
-        const rows = parseCSV(text);
-
-        if (rows.length < 2) {
-          showStatus('La tabla no contiene participantes suficientes.', true);
-          return;
-        }
-
-        const data = [];
-        for (let i = 1; i < rows.length; i++) {
-          const r = rows[i];
-          if (!r || r.length < 5) continue;
-
-          const nombreCompleto = `${r[1]||''} ${r[2]||''} ${r[3]||''} ${r[4]||''}`.replace(/\s+/g, ' ').trim();
-          const edad = parseInt(r[8]) || 0;
-          
-          // EXTRAER GÉNERO DE MANERA EXCLUSIVA BUSCANDO 'Femenino' O 'Masculino' EN LA FILA
-          let detectedSexo = null;
-          for (let colIdx = 0; colIdx < r.length; colIdx++) {
-            let val = (r[colIdx] || '').trim().toLowerCase();
-            if (val === 'femenino') {
-              detectedSexo = 'Femenino';
-              break;
-            } else if (val === 'masculino') {
-              detectedSexo = 'Masculino';
-              break;
-            }
-          }
-
-          const sexo = detectedSexo || 'Femenino';
-          const tieneFamiliar = (r[14] || '').trim().toUpperCase() === 'SI';
-          const familiarNom = `${r[15]||''} ${r[16]||''} ${r[17]||''} ${r[18]||''}`.replace(/\s+/g, ' ').trim();
-
-          data.push({
-            rawRow: r,
-            nombreCompleto,
-            edad,
-            sexo,
-            tieneFamiliar,
-            familiarNom,
-            id: i
-          });
-        }
-
-        rawLoadedData = rows;
-        buildFamilyGroups(data);
-        allocateSeatsStrictAge(data);
-
-        showStatus('Acomodación generada exitosamente. Conteo exacto de género aplicado.');
-        document.getElementById('btnExportExcel').disabled = false;
-        document.getElementById('btnExportImage').disabled = false;
-        document.getElementById('statsBox').classList.remove('hidden');
-        document.getElementById('planContainer').classList.remove('hidden');
-
-      } catch (err) {
-        showStatus('Error procesando: ' + err.message, true);
-      }
-    }
-
-    function allocateSeatsStrictAge(participants) {
-      const sortedByAge = [...participants].sort((a, b) => a.edad - b.edad);
-
-      document.getElementById('statTotal').innerText = participants.length;
-      document.getElementById('statFem').innerText = participants.filter(d => d.sexo.toLowerCase() === 'femenino').length;
-      document.getElementById('statMas').innerText = participants.filter(d => d.sexo.toLowerCase() === 'masculino').length;
-      document.getElementById('statFam').innerText = Object.keys(familyColorMap).length;
-
-      const grid = Array.from({ length: selectedRows }, () => Array(selectedCols).fill(null));
-      let pIdx = 0;
-
-      for (let r = 0; r < selectedRows; r++) {
-        let rowPeople = sortedByAge.slice(pIdx, pIdx + selectedCols);
-        pIdx += selectedCols;
-
-        if (rowPeople.length === 0) break;
-
-        let fList = rowPeople.filter(p => p.sexo.toLowerCase() === 'femenino');
-        let mList = rowPeople.filter(p => p.sexo.toLowerCase() === 'masculino');
-
-        for (let c = 0; c < selectedCols; c++) {
-          let desiredGender = (c % 2 === 0) ? 'femenino' : 'masculino';
-          let person = null;
-
-          if (desiredGender === 'femenino') {
-            if (fList.length > 0) person = fList.shift();
-            else if (mList.length > 0) person = mList.shift();
-          } else {
-            if (mList.length > 0) person = mList.shift();
-            else if (fList.length > 0) person = fList.shift();
-          }
-
-          if (person) {
-            person.row = r;
-            person.col = c;
-            person.silla = `${String.fromCharCode(65 + r)}${c + 1}`;
-            grid[r][c] = person;
-          }
-        }
-      }
-
-      // Separación horizontal de familiares en la misma fila
-      for (let r = 0; r < selectedRows; r++) {
-        for (let c1 = 0; c1 < selectedCols; c1++) {
-          let p1 = grid[r][c1];
-          if (!p1 || !p1.tieneFamiliar) continue;
-
-          for (let c2 = c1 + 1; c2 < selectedCols; c2++) {
-            let p2 = grid[r][c2];
-            if (!p2 || !p2.tieneFamiliar) continue;
-
-            let sameFamily = (p1.familyId !== null && p2.familyId !== null && p1.familyId === p2.familyId);
-            if (sameFamily || Math.abs(c1 - c2) <= 2) {
-              for (let ck = selectedCols - 1; ck >= 0; ck--) {
-                let candidate = grid[r][ck];
-                if (candidate && !candidate.tieneFamiliar && Math.abs(ck - c1) > 2) {
-                  grid[r][c2] = candidate;
-                  grid[r][ck] = p2;
-
-                  candidate.col = c2;
-                  candidate.silla = `${String.fromCharCode(65 + r)}${c2 + 1}`;
-
-                  p2.col = ck;
-                  p2.silla = `${String.fromCharCode(65 + r)}${ck + 1}`;
-                  break;
-                }
-              }
-            }
-          }
-        }
-      }
-
-      currentGrid = grid;
-      syncGlobalAssignedData();
-      renderGridMap();
-      renderBench();
-    }
-
-    function syncGlobalAssignedData() {
-      const list = [];
-      for (let r = 0; r < selectedRows; r++) {
-        for (let c = 0; c < selectedCols; c++) {
-          let item = currentGrid[r][c];
-          if (item) {
-            item.row = r;
-            item.col = c;
-            item.silla = `${String.fromCharCode(65 + r)}${c + 1}`;
-            list.push(item);
-          }
-        }
-      }
-      globalAssignedData = list;
-    }
-
-    // DRAG AND DROP HANDLERS
-    let dragSource = null;
-
-    function handleDragStartGrid(e, r, c) {
-      dragSource = { type: 'grid', r, c };
-      e.dataTransfer.effectAllowed = 'move';
-    }
-
-    function handleDragStartBench(e, index) {
-      dragSource = { type: 'bench', index };
-      e.dataTransfer.effectAllowed = 'move';
-    }
-
-    function handleDragOver(e) {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      e.currentTarget.classList.add('drag-over');
-    }
-
-    function handleDragLeave(e) {
-      e.currentTarget.classList.remove('drag-over');
-    }
-
-    function handleDropToGrid(e, targetR, targetC) {
-      e.preventDefault();
-      e.currentTarget.classList.remove('drag-over');
-      if (!dragSource) return;
-
-      if (dragSource.type === 'grid') {
-        let srcR = dragSource.r;
-        let srcC = dragSource.c;
-        if (srcR === targetR && srcC === targetC) return;
-
-        let temp = currentGrid[srcR][srcC];
-        currentGrid[srcR][srcC] = currentGrid[targetR][targetC];
-        currentGrid[targetR][targetC] = temp;
-      } else if (dragSource.type === 'bench') {
-        let item = benchList.splice(dragSource.index, 1)[0];
-        let oldTargetItem = currentGrid[targetR][targetC];
-
-        if (oldTargetItem) {
-          benchList.push(oldTargetItem);
-        }
-        currentGrid[targetR][targetC] = item;
-      }
-
-      dragSource = null;
-      syncGlobalAssignedData();
-      renderGridMap();
-      renderBench();
-    }
-
-    function handleDropToBench(e) {
-      e.preventDefault();
-      e.currentTarget.classList.remove('drag-over');
-      if (!dragSource || dragSource.type !== 'grid') return;
-
-      let item = currentGrid[dragSource.r][dragSource.c];
-      if (item) {
-        currentGrid[dragSource.r][dragSource.c] = null;
-        benchList.push(item);
-      }
-
-      dragSource = null;
-      syncGlobalAssignedData();
-      renderGridMap();
-      renderBench();
-    }
-
-    function renderGridMap() {
-      const gridMap = document.getElementById('gridMap');
-      gridMap.innerHTML = '';
-      gridMap.style.gridTemplateColumns = `repeat(${selectedCols}, minmax(115px, 1fr))`;
-
-      for (let r = 0; r < selectedRows; r++) {
-        for (let c = 0; c < selectedCols; c++) {
-          const item = currentGrid[r][c];
-          const div = document.createElement('div');
-          let seatTag = `${String.fromCharCode(65 + r)}${c + 1}`;
-
-          div.setAttribute('ondragover', 'handleDragOver(event)');
-          div.setAttribute('ondragleave', 'handleDragLeave(event)');
-          div.setAttribute('ondrop', `handleDropToGrid(event, ${r}, ${c})`);
-
-          if (item) {
-            item.silla = seatTag;
-            div.draggable = true;
-            div.setAttribute('ondragstart', `handleDragStartGrid(event, ${r}, ${c})`);
-
-            if (item.familyId !== null && familyColorMap[item.familyId]) {
-              let fam = familyColorMap[item.familyId];
-              div.className = `chair border-2 rounded-lg p-2 text-center text-xs shadow-sm flex flex-col justify-between`;
-              div.style.backgroundColor = fam.color.bg;
-              div.style.borderColor = fam.color.border;
-              div.style.color = fam.color.text;
-
-              div.innerHTML = `
-                <div class="flex justify-between items-center">
-                  <span class="font-bold text-xs text-indigo-800">${seatTag}</span>
-                  <span class="text-[9px] font-bold px-1 rounded truncate max-w-[60px]" style="background-color: ${fam.color.badgeBg}">${fam.name}</span>
-                </div>
-                <div class="font-semibold text-[11px] truncate my-1" title="${item.nombreCompleto}">${item.nombreCompleto}</div>
-                <div class="text-[10px] opacity-80">${item.edad} años | ${item.sexo[0]}</div>
-              `;
-            } else {
-              let isFem = item.sexo.toLowerCase() === 'femenino';
-              let bgClass = isFem ? 'bg-pink-50 border-pink-300 text-pink-900' : 'bg-blue-50 border-blue-300 text-blue-900';
-              div.className = `chair border rounded-lg p-2 text-center text-xs shadow-sm flex flex-col justify-between ${bgClass}`;
-
-              div.innerHTML = `
-                <div class="font-bold text-xs text-indigo-700 text-left">${seatTag}</div>
-                <div class="font-semibold text-[11px] truncate my-1" title="${item.nombreCompleto}">${item.nombreCompleto}</div>
-                <div class="text-[10px] opacity-80">${item.edad} años | ${item.sexo[0]}</div>
-              `;
-            }
-          } else {
-            div.className = `border border-dashed border-slate-300 rounded-lg p-2 text-center text-xs text-slate-400 bg-slate-50 flex items-center justify-center transition`;
-            div.innerHTML = `<span>${seatTag}<br>(Vacía)</span>`;
-          }
-          gridMap.appendChild(div);
-        }
-      }
-    }
-
-    function renderBench() {
-      const container = document.getElementById('benchContainer');
-      const counter = document.getElementById('benchCount');
-      container.innerHTML = '';
-
-      counter.innerText = `${benchList.length} ficha${benchList.length === 1 ? '' : 's'} en banca`;
-
-      if (benchList.length === 0) {
-        container.innerHTML = `<p class="text-xs text-amber-500 italic w-full text-center py-2">Arrastra aquí a cualquier participante para desocupar su silla temporalmente...</p>`;
-        return;
-      }
-
-      benchList.forEach((item, index) => {
-        const div = document.createElement('div');
-        div.draggable = true;
-        div.setAttribute('ondragstart', `handleDragStartBench(event, ${index})`);
-
-        if (item.familyId !== null && familyColorMap[item.familyId]) {
-          let fam = familyColorMap[item.familyId];
-          div.className = `chair border-2 rounded-lg p-2 text-center text-xs shadow flex flex-col justify-between w-[115px]`;
-          div.style.backgroundColor = fam.color.bg;
-          div.style.borderColor = fam.color.border;
-          div.style.color = fam.color.text;
-
-          div.innerHTML = `
-            <div class="font-bold text-[9px] uppercase">${fam.name}</div>
-            <div class="font-semibold text-[11px] truncate my-0.5" title="${item.nombreCompleto}">${item.nombreCompleto}</div>
-            <div class="text-[10px] opacity-80">${item.edad} a. | ${item.sexo[0]}</div>
-          `;
-        } else {
-          let isFem = item.sexo.toLowerCase() === 'femenino';
-          let bgClass = isFem ? 'bg-pink-50 border-pink-300 text-pink-900' : 'bg-blue-50 border-blue-300 text-blue-900';
-          div.className = `chair border rounded-lg p-2 text-center text-xs shadow flex flex-col justify-between w-[115px] ${bgClass}`;
-
-          div.innerHTML = `
-            <div class="font-bold text-[10px] text-amber-700 uppercase">Sin Silla</div>
-            <div class="font-semibold text-[11px] truncate my-0.5" title="${item.nombreCompleto}">${item.nombreCompleto}</div>
-            <div class="text-[10px] opacity-80">${item.edad} a. | ${item.sexo[0]}</div>
-          `;
-        }
-
-        container.appendChild(div);
-      });
-    }
-
-    function exportToExcel() {
-      if (!globalAssignedData || globalAssignedData.length === 0) return;
-
-      const headers = [...rawLoadedData[0], 'SILLA'];
-      const exportData = [headers];
-
-      globalAssignedData.forEach(item => {
-        const row = [...item.rawRow];
-        row.push(item.silla);
-        exportData.push(row);
-      });
-
-      const ws = XLSX.utils.aoa_to_sheet(exportData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Acomodación Sillas");
-
-      XLSX.writeFile(wb, "Acomodacion_Retiro_Espiritual.xlsx");
-    }
-
-    async function exportPlanToImage() {
-      const container = document.getElementById('planContainer');
-      if (!container || container.classList.contains('hidden')) return;
-
-      showStatus('Generando imagen en alta resolución del plano gráfico...');
-
-      try {
-        const canvas = await html2canvas(container, {
-          scale: 2,
-          backgroundColor: '#ffffff',
-          useCORS: true
-        });
-
-        const link = document.createElement('a');
-        link.download = 'Plano_Acomodacion_Salon.png';
-        link.href = canvas.toDataURL('image/png');
-        link.click();
-
-        showStatus('Plano gráfico descargado exitosamente como imagen PNG.');
-      } catch (err) {
-        showStatus('Error generando la imagen: ' + err.message, true);
-      }
-    }
-  </script>
-</body>
-</html>
+  <div class="flex flex-col justify-end space-y-2 bg-indigo-50/70 p-3 rounded-xl border border-indigo-100">
+    <button id="btnProcess" onclick="processAllocation()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-3 rounded-lg shadow transition">
+      🚀 Generar Acomodación
+    </button>
+    <div class="grid grid-cols-2 gap-2">
+      <button id="btnExportExcel" onclick="exportToExcel()" disabled class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-1.5 px-2 rounded-lg shadow disabled:opacity-50 text-[11px] disabled:cursor-not-allowed transition">
+        📊 Excel + SILLA
+      </button>
+      <button id="btnExportImage" onclick="exportPlanToImage()" disabled class="bg-slate-800 hover:bg-slate-900 text-white font-semibold py-1.5 px-2 rounded-lg shadow disabled:opacity-50 text-[11px] disabled:cursor-not-allowed transition">
+        🖼️ Plano (PNG)
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Mensajes de Estado / Errores -->
+<div id="statusBox" class="hidden rounded-lg p-3 text-xs font-medium"></div>
+
+<!-- Visualizador de Plano Gráfico -->
+<div id="planContainer" class="hidden bg-white rounded-xl shadow p-4 space-y-3">
+  <div class="flex flex-col md:flex-row justify-between items-center gap-2 border-b pb-2">
+    <div>
+      <h2 class="text-base font-bold text-gray-800">Plano General del Salón</h2>
+      <p class="text-[11px] text-gray-500">Pasa el mouse sobre cualquier silla para ver la ficha completa y foto del participante.</p>
+    </div>
+    <div class="flex items-center gap-3 text-xs font-medium">
+      <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-white border border-slate-300 inline-block shadow-sm"></span> Puesto Individual</span>
+      <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-amber-200 border border-amber-500 inline-block shadow-sm"></span> Familia (Color Exclusivo)</span>
+    </div>
+  </div>
+
+  <!-- Leyenda Dinámica de Familias -->
+  <div id="familyLegend" class="flex flex-wrap gap-1.5 text-[11px] max-h-16 overflow-y-auto"></div>
+
+  <!-- Escenario / Tarima -->
+  <div class="w-full bg-slate-800 text-white text-center py-1 rounded text-xs font-bold tracking-widest uppercase shadow-sm">
+    Escenario / Tarima (Fila A - Menores de Edad)
+  </div>
+
+  <!-- Grid interactivo del Salón ajustado -->
+  <div class="w-full overflow-hidden py-1">
+    <div id="gridMap" class="grid gap-1.5 w-full justify-center mx-auto"></div>
+  </div>
+
+  <!-- ZONA DE BANCA / BANCO TEMPORAL -->
+  <div class="border border-dashed border-amber-300 bg-amber-50/50 rounded-lg p-2 mt-2">
+    <div class="flex items-center justify-between mb-1">
+      <h3 class="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+        🛋️ Banca Temporal
+        <span class="text-[10px] font-normal text-amber-700">(Arrastra para liberar sillas temporalmente)</span>
+      </h3>
+      <span id="benchCount" class="text-[10px] font-semibold bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full">0 fichas</span>
+    </div>
+    <div id="benchContainer" 
+         ondragover="handleDragOver(event)" 
+         ondragleave="handleDragLeave(event)" 
+         ondrop="handleDropToBench(event)"
+         class="min-h-[50px] border border-amber-200 rounded-lg bg-white p-2 flex flex-wrap gap-1.5 items-center">
+      <p id="benchPlaceholder" class="text-[11px] text-amber-400 italic w-full text-center">Arrastra aquí a cualquier participante...</p>
+    </div>
+  </div>
+</div>
