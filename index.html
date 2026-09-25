@@ -103,10 +103,10 @@
     /* TOOLTIP CON FOTO EN HOVER */
     #tooltipCard {
       position: fixed; display: none; z-index: 100; background: #ffffff; border: 1px solid #e2e8f0;
-      border-radius: 0.75rem; padding: 0.75rem; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2);
-      pointer-events: none; width: 220px; text-align: center;
+      border-radius: 0.75rem; padding: 0.875rem; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2);
+      pointer-events: none; width: 230px; text-align: center;
     }
-    #tooltipCard img { width: 70px; height: 70px; border-radius: 50%; object-fit: cover; margin: 0 auto 0.5rem auto; border: 2px solid #6366f1; }
+    #tooltipCard img { width: 75px; height: 75px; border-radius: 50%; object-fit: cover; margin: 0 auto 0.5rem auto; border: 2px solid #6366f1; background-color: #f1f5f9; display: block; }
   </style>
 </head>
 <body>
@@ -195,7 +195,7 @@
 
   <!-- TOOLTIP DE VISTA PREVIA (HOVER) -->
   <div id="tooltipCard">
-    <img id="ttPhoto" src="" alt="Foto">
+    <img id="ttPhoto" src="" alt="Foto Participante" onerror="handleImageError(this)">
     <div id="ttName" style="font-weight: 700; font-size: 0.875rem; color: #1e293b;"></div>
     <div id="ttInfo" style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;"></div>
     <div id="ttFam" style="font-size: 0.75rem; font-weight: 600; color: #4f46e5; margin-top: 0.25rem;"></div>
@@ -209,10 +209,36 @@
     let selectedRows = 0;
     let selectedCols = 0;
     let familyColorMap = {};
+    let currentParticipantName = '';
 
     function getCsvUrl(url) {
       const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
       return (match && match[1]) ? `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=csv` : url;
+    }
+
+    // CONVERTIDOR DE URLS DE GOOGLE DRIVE Y AVATAR
+    function formatImageUrl(url, nombre) {
+      if (!url || typeof url !== 'string' || url.trim() === '') {
+        return `https://ui-avatars.com/api/?name=${encodeURIComponent(nombre)}&background=6366f1&color=fff`;
+      }
+      url = url.trim();
+
+      // Extraer ID si es un enlace de Google Drive
+      const driveMatch = url.match(/(?:id=|\/d\/|\/file\/d\/)([a-zA-Z0-9_-]{25,})/);
+      if (driveMatch && driveMatch[1]) {
+        return `https://lh3.googleusercontent.com/d/${driveMatch[1]}`;
+      }
+
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        return url;
+      }
+
+      return `https://ui-avatars.com/api/?name=${encodeURIComponent(nombre)}&background=6366f1&color=fff`;
+    }
+
+    function handleImageError(imgElement) {
+      imgElement.onerror = null; // Prevenir loop infinito
+      imgElement.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentParticipantName || 'P')}&background=6366f1&color=fff`;
     }
 
     function parseCSV(text) {
@@ -369,7 +395,17 @@
             else if (val === 'masculino') { detectedSexo = 'Masculino'; break; }
           }
 
-          const fotoUrl = r[19] || r[20] || `https://ui-avatars.com/api/?name=${encodeURIComponent(nombreCompleto)}&background=random`;
+          // Buscar columna con URL de foto
+          let rawFoto = '';
+          for (let colIdx = r.length - 1; colIdx >= 0; colIdx--) {
+            let val = (r[colIdx] || '').trim();
+            if (val.includes('drive.google.com') || val.includes('http') || val.match(/\.(jpg|jpeg|png|webp)/i)) {
+              rawFoto = val;
+              break;
+            }
+          }
+
+          const fotoUrl = formatImageUrl(rawFoto, nombreCompleto);
 
           data.push({
             rawRow: r,
@@ -495,8 +531,8 @@
           if (item) {
             div.draggable = true;
             div.setAttribute('ondragstart', `handleDragStartGrid(event, ${r}, ${c})`);
-            div.setAttribute('onmousemove', `showTooltip(event, '${item.nombreCompleto}', '${item.edad} años | ${item.sexo}', '${item.familyName || 'Sin Grupo Familiar'}', '${item.fotoUrl}')`);
-            div.setAttribute('onmouseleave', 'hideTooltip()');
+            div.addEventListener('mousemove', (e) => showTooltip(e, item.nombreCompleto, `${item.edad} años | ${item.sexo}`, item.familyName || 'Sin Grupo Familiar', item.fotoUrl));
+            div.addEventListener('mouseleave', hideTooltip);
 
             if (item.familyId !== null && familyColorMap[item.familyId]) {
               let fam = familyColorMap[item.familyId];
@@ -542,8 +578,8 @@
         const div = document.createElement('div');
         div.draggable = true;
         div.setAttribute('ondragstart', `handleDragStartBench(event, ${index})`);
-        div.setAttribute('onmousemove', `showTooltip(event, '${item.nombreCompleto}', '${item.edad} años | ${item.sexo}', '${item.familyName || 'Sin Grupo Familiar'}', '${item.fotoUrl}')`);
-        div.setAttribute('onmouseleave', 'hideTooltip()');
+        div.addEventListener('mousemove', (e) => showTooltip(e, item.nombreCompleto, `${item.edad} años | ${item.sexo}`, item.familyName || 'Sin Grupo Familiar', item.fotoUrl));
+        div.addEventListener('mouseleave', hideTooltip);
 
         if (item.familyId !== null && familyColorMap[item.familyId]) {
           let fam = familyColorMap[item.familyId];
@@ -570,13 +606,17 @@
       });
     }
 
-    // TOOLTIP HOVER
+    // TOOLTIP HOVER CON MANEJO DE FOTO
     function showTooltip(e, name, info, fam, photo) {
+      currentParticipantName = name;
       const card = document.getElementById('tooltipCard');
+      const img = document.getElementById('ttPhoto');
+
       document.getElementById('ttName').innerText = name;
       document.getElementById('ttInfo').innerText = info;
       document.getElementById('ttFam').innerText = fam;
-      document.getElementById('ttPhoto').src = photo;
+
+      img.src = photo;
 
       card.style.display = 'block';
       card.style.left = (e.clientX + 15) + 'px';
