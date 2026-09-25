@@ -1,114 +1,622 @@
-<!-- Formularios y Controles Originales -->
-<div class="bg-white rounded-xl shadow p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-  <div class="lg:col-span-2 space-y-4">
-    <div>
-      <label class="block text-sm font-semibold text-gray-700 mb-1">Enlace público de Google Sheets / CSV:</label>
-      <input id="sheetUrl" type="text" 
-        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-        value="https://docs.google.com/spreadsheets/d/1k3p0YhVaFlGYwpUwo5k4pS28oW4h29HKqWOxFh2HE_k/edit?usp=sharing">
-    </div>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestión de Acomodación y Sillas - Retiro Espiritual</title>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+  <!-- Librerías de exportación -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <style>
+    /* RESET Y ESTILOS BASE */
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    body { background-color: #f1f5f9; color: #1e293b; padding: 1.5rem; min-height: 100vh; }
+    .max-w-7xl { max-width: 80rem; margin: 0 auto; }
+
+    /* CABECERA */
+    header { background-color: #312e81; color: #ffffff; padding: 1.5rem; border-radius: 0.75rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); margin-bottom: 1.5rem; }
+    header h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.25rem; }
+    header p { color: #c7d2fe; font-size: 0.875rem; }
+
+    /* FORMULARIO Y CONTROLES */
+    .card { background-color: #ffffff; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); padding: 1.5rem; margin-bottom: 1.5rem; }
+    .grid-form { display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
+    @media (min-width: 1024px) { .grid-form { grid-template-columns: 2fr 1fr; } }
+
+    .form-group { margin-bottom: 1rem; }
+    label { display: block; font-size: 0.875rem; font-weight: 600; color: #374151; margin-bottom: 0.375rem; }
+    input[type="text"], input[type="number"], select {
+      width: 100%; border: 1px solid #d1d5db; border-radius: 0.5rem; padding: 0.5rem 0.75rem; font-size: 0.875rem; outline: none;
+    }
+    input:focus, select:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2); }
+
+    .btn-group-row { display: flex; gap: 0.5rem; }
+    .btn { cursor: pointer; border: none; border-radius: 0.5rem; padding: 0.625rem 1rem; font-weight: 600; font-size: 0.875rem; transition: all 0.2s; text-align: center; }
+    .btn-slate { background-color: #e2e8f0; color: #334155; }
+    .btn-slate:hover { background-color: #cbd5e1; }
+    .btn-primary { background-color: #4f46e5; color: white; width: 100%; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 0.5rem; }
+    .btn-primary:hover { background-color: #4338ca; }
+    .btn-success { background-color: #059669; color: white; width: 100%; margin-bottom: 0.5rem; }
+    .btn-success:hover { background-color: #047857; }
+    .btn-dark { background-color: #1e293b; color: white; width: 100%; }
+    .btn-dark:hover { background-color: #0f172a; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .side-panel { background-color: #eef2ff; border: 1px solid #e0e7ff; padding: 1rem; border-radius: 0.75rem; display: flex; flex-direction: column; justify-content: center; }
+
+    /* ESTADO */
+    #statusBox { padding: 1rem; border-radius: 0.5rem; font-size: 0.875rem; font-weight: 500; margin-bottom: 1.5rem; display: none; }
+    .status-info { background-color: #dbeafe; color: #1e40af; }
+    .status-error { background-color: #fee2e2; color: #991b1b; }
+
+    /* ESTADÍSTICAS */
+    .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+    @media (min-width: 768px) { .stats-grid { grid-template-columns: repeat(4, 1fr); } }
+    .stat-card { background: white; padding: 1rem; border-radius: 0.75rem; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-top: 4px solid #6366f1; }
+    .stat-card.fem { border-top-color: #ec4899; }
+    .stat-card.mas { border-top-color: #3b82f6; }
+    .stat-card.fam { border-top-color: #f59e0b; }
+    .stat-title { font-size: 0.75rem; color: #6b7280; text-transform: uppercase; font-weight: 600; }
+    .stat-val { font-size: 1.5rem; font-weight: 700; color: #1f2937; margin-top: 0.25rem; }
+
+    /* LEYENDA */
+    .legend-box { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+    .legend-item { padding: 0.25rem 0.5rem; border-radius: 0.375rem; font-size: 0.75rem; font-weight: 700; border: 1px solid transparent; }
+
+    /* ESCENARIO Y SALÓN */
+    .stage { background-color: #1e293b; color: white; text-align: center; padding: 0.625rem; border-radius: 0.375rem; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 1rem; }
+
+    .grid-container { width: 100%; overflow-x: auto; }
+    .grid-map { display: grid; gap: 0.5rem; width: 100%; justify-content: stretch; }
+
+    /* FICHAS Y SILLAS */
+    .chair {
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      cursor: grab;
+      border-radius: 0.5rem;
+      padding: 0.5rem;
+      text-align: center;
+      font-size: 0.75rem;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 65px;
+      position: relative;
+      user-select: none;
+    }
+    .chair:hover { transform: scale(1.04); z-index: 5; box-shadow: 0 4px 8px rgba(0,0,0,0.12); }
+    .chair:active { cursor: grabbing; }
+
+    /* Individuales (Sin color) */
+    .chair-individual { background-color: #ffffff; border: 1px solid #cbd5e1; color: #334155; }
+    .chair-empty { background-color: #f8fafc; border: 1px dashed #cbd5e1; color: #94a3b8; display: flex; align-items: center; justify-content: center; }
+
+    .drag-over { border: 2px dashed #6366f1 !important; background-color: #e0e7ff !important; }
+
+    /* BANCA TEMPORAL */
+    .bench-zone { border: 2px dashed #fcd34d; background-color: #fffbeb; border-radius: 0.75rem; padding: 1rem; margin-top: 1.5rem; }
+    .bench-container { min-height: 80px; border: 1px solid #fef3c7; border-radius: 0.5rem; background-color: #ffffff; padding: 0.75rem; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+
+    /* TOOLTIP CON FOTO EN HOVER */
+    #tooltipCard {
+      position: fixed; display: none; z-index: 100; background: #ffffff; border: 1px solid #e2e8f0;
+      border-radius: 0.75rem; padding: 0.75rem; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2);
+      pointer-events: none; width: 220px; text-align: center;
+    }
+    #tooltipCard img { width: 70px; height: 70px; border-radius: 50%; object-fit: cover; margin: 0 auto 0.5rem auto; border: 2px solid #6366f1; }
+  </style>
+</head>
+<body>
+
+  <div class="max-w-7xl">
+    <!-- Header -->
+    <header>
+      <h1>Gestión de Acomodación y Sillas - Retiro Espiritual</h1>
+      <p>Organización automática por edad ascendente, distribución por género y agrupación con colores exclusivos solo para familias.</p>
+    </header>
+
+    <!-- Controles -->
+    <div class="card grid-form">
       <div>
-        <label class="block text-sm font-semibold text-gray-700 mb-1">Número de Participantes:</label>
-        <div class="flex gap-2">
-          <input id="participantCount" type="number" placeholder="Ej: 96" 
-            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-            oninput="updatePlanimetryOptions()">
-          <button onclick="detectParticipantCount()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold text-xs px-3 py-2 rounded-lg transition whitespace-nowrap">
-            Autodetectar Hoja
-          </button>
+        <div class="form-group">
+          <label>Enlace público de Google Sheets / CSV:</label>
+          <input id="sheetUrl" type="text" value="https://docs.google.com/spreadsheets/d/1k3p0YhVaFlGYwpUwo5k4pS28oW4h29HKqWOxFh2HE_k/edit?usp=sharing">
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div class="form-group">
+            <label>Número de Participantes:</label>
+            <div class="btn-group-row">
+              <input id="participantCount" type="number" placeholder="Ej: 96" oninput="updatePlanimetryOptions()">
+              <button onclick="detectParticipantCount()" class="btn btn-slate" style="white-space: nowrap;">Autodetectar</button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Planimetría del Salón:</label>
+            <select id="gridPreset">
+              <option value="">-- Ingresa participantes primero --</option>
+            </select>
+          </div>
         </div>
       </div>
 
-      <div>
-        <label class="block text-sm font-semibold text-gray-700 mb-1">Opciones de Planimetría del Salón:</label>
-        <select id="gridPreset" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-          <option value="">-- Ingresa número de participantes primero --</option>
-        </select>
+      <div class="side-panel">
+        <button id="btnProcess" onclick="processAllocation()" class="btn btn-primary">🚀 Generar Acomodación Exacta</button>
+        <button id="btnExportExcel" onclick="exportToExcel()" disabled class="btn btn-success">📊 Descargar Excel Con SILLA</button>
+        <button id="btnExportImage" onclick="exportPlanToImage()" disabled class="btn btn-dark">🖼️ Descargar Plano (PNG)</button>
+      </div>
+    </div>
+
+    <!-- Caja de Estado -->
+    <div id="statusBox"></div>
+
+    <!-- Panel de Estadísticas -->
+    <div id="statsBox" class="stats-grid" style="display: none;">
+      <div class="stat-card"><div class="stat-title">Total Procesados</div><div id="statTotal" class="stat-val">0</div></div>
+      <div class="stat-card fem"><div class="stat-title">Femeninos</div><div id="statFem" class="stat-val">0</div></div>
+      <div class="stat-card mas"><div class="stat-title">Masculinos</div><div id="statMas" class="stat-val">0</div></div>
+      <div class="stat-card fam"><div class="stat-title">Familias</div><div id="statFam" class="stat-val">0</div></div>
+    </div>
+
+    <!-- Contenedor del Salón -->
+    <div id="planContainer" class="card" style="display: none;">
+      <div style="margin-bottom: 1rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.75rem;">
+        <h2 style="font-size: 1.25rem; font-weight: 700;">Plano General del Salón</h2>
+        <p style="font-size: 0.75rem; color: #64748b;">Pasa el mouse sobre cualquier silla para ver la ficha completa y foto del participante.</p>
+      </div>
+
+      <!-- Leyenda Dinámica -->
+      <div class="legend-box" id="familyLegend"></div>
+
+      <!-- Tarima / Escenario -->
+      <div class="stage">Escenario / Tarima (Fila A - Menores de Edad)</div>
+
+      <!-- Grid interactivo del Salón -->
+      <div class="grid-container">
+        <div id="gridMap" class="grid-map"></div>
+      </div>
+
+      <!-- Banca Temporal -->
+      <div class="bench-zone">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+          <h3 style="font-size: 0.875rem; font-weight: 700; color: #92400e;">🛋️ Banca Temporal / Mesa de Trabajo</h3>
+          <span id="benchCount" style="font-size: 0.75rem; background: #fef3c7; color: #92400e; padding: 0.25rem 0.5rem; border-radius: 1rem; font-weight: 600;">0 fichas</span>
+        </div>
+        <div id="benchContainer" class="bench-container" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDropToBench(event)">
+          <p id="benchPlaceholder" style="font-size: 0.75rem; color: #d97706; font-style: italic; width: 100%; text-align: center;">Arrastra aquí a cualquier participante para desocupar su silla temporalmente...</p>
+        </div>
       </div>
     </div>
   </div>
 
-  <div class="flex flex-col justify-end space-y-3 bg-indigo-50 p-4 rounded-xl border border-indigo-100">
-    <button id="btnProcess" onclick="processAllocation()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-lg shadow transition">
-      🚀 Generar Acomodación Exacta
-    </button>
-    <button id="btnExportExcel" onclick="exportToExcel()" disabled class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-4 rounded-lg shadow disabled:opacity-50 disabled:cursor-not-allowed transition">
-      📊 Descargar Excel Con Columna SILLA
-    </button>
-    <button id="btnExportImage" onclick="exportPlanToImage()" disabled class="w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold py-2.5 px-4 rounded-lg shadow disabled:opacity-50 disabled:cursor-not-allowed transition">
-      🖼️ Descargar Plano Gráfico (PNG)
-    </button>
-  </div>
-</div>
-
-<!-- Mensajes de Estado / Errores -->
-<div id="statusBox" class="hidden rounded-lg p-4 text-sm font-medium"></div>
-
-<!-- Resultados y Estadísticas Originales -->
-<div id="statsBox" class="hidden grid grid-cols-2 md:grid-cols-4 gap-4">
-  <div class="bg-white p-4 rounded-xl shadow text-center border-t-4 border-indigo-500">
-    <p class="text-xs text-gray-500 uppercase font-semibold">Participantes Procesados</p>
-    <p id="statTotal" class="text-2xl font-bold text-gray-800">0</p>
-  </div>
-  <div class="bg-white p-4 rounded-xl shadow text-center border-t-4 border-pink-500">
-    <p class="text-xs text-gray-500 uppercase font-semibold">Femeninos</p>
-    <p id="statFem" class="text-2xl font-bold text-gray-800">0</p>
-  </div>
-  <div class="bg-white p-4 rounded-xl shadow text-center border-t-4 border-blue-500">
-    <p class="text-xs text-gray-500 uppercase font-semibold">Masculinos</p>
-    <p id="statMas" class="text-2xl font-bold text-gray-800">0</p>
-  </div>
-  <div class="bg-white p-4 rounded-xl shadow text-center border-t-4 border-amber-500">
-    <p class="text-xs text-gray-500 uppercase font-semibold">Familias Registradas</p>
-    <p id="statFam" class="text-2xl font-bold text-gray-800">0</p>
-  </div>
-</div>
-
-<!-- Visualizador de Plano Grafico -->
-<div id="planContainer" class="hidden bg-white rounded-xl shadow p-6 space-y-6">
-  <div class="flex flex-col md:flex-row justify-between items-center gap-4 border-b pb-4">
-    <div>
-      <h2 class="text-xl font-bold text-gray-800">Plano Gráfico de Ubicación en el Salón</h2>
-      <p class="text-xs text-gray-500">
-        Pasa el cursor sobre cualquier silla para ver la foto y ficha completa del participante.
-      </p>
-    </div>
-    <div class="flex items-center gap-4 text-xs font-medium">
-      <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-white border border-slate-300 inline-block shadow-sm"></span> Individual</span>
-      <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-amber-200 border border-amber-500 inline-block shadow-sm"></span> Grupo Familiar (Color Exclusivo)</span>
-    </div>
+  <!-- TOOLTIP DE VISTA PREVIA (HOVER) -->
+  <div id="tooltipCard">
+    <img id="ttPhoto" src="" alt="Foto">
+    <div id="ttName" style="font-weight: 700; font-size: 0.875rem; color: #1e293b;"></div>
+    <div id="ttInfo" style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;"></div>
+    <div id="ttFam" style="font-size: 0.75rem; font-weight: 600; color: #4f46e5; margin-top: 0.25rem;"></div>
   </div>
 
-  <!-- Leyenda Dinámica de Familias -->
-  <div id="familyLegend" class="flex flex-wrap gap-2 text-xs py-1"></div>
+  <script>
+    let rawLoadedData = [];
+    let globalAssignedData = [];
+    let currentGrid = [];
+    let benchList = [];
+    let selectedRows = 0;
+    let selectedCols = 0;
+    let familyColorMap = {};
 
-  <!-- Escenario / Tarima -->
-  <div class="w-full bg-slate-800 text-white text-center py-2.5 rounded-md text-xs font-bold tracking-widest uppercase shadow">
-    Escenario / Tarima (Fila A - Menores de Edad)
-  </div>
+    function getCsvUrl(url) {
+      const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+      return (match && match[1]) ? `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=csv` : url;
+    }
 
-  <!-- Grid interactivo del Salón Ajustado a Pantalla sin Scroll -->
-  <div class="w-full overflow-hidden py-2">
-    <div id="gridMap" class="grid gap-1.5 w-full justify-center mx-auto"></div>
-  </div>
+    function parseCSV(text) {
+      const lines = [];
+      let row = [];
+      let inQuotes = false;
+      let token = '';
+      for (let i = 0; i < text.length; i++) {
+        const c = text[i], next = text[i+1];
+        if (c === '"') {
+          if (inQuotes && next === '"') { token += '"'; i++; }
+          else { inQuotes = !inQuotes; }
+        } else if (c === ',' && !inQuotes) {
+          row.push(token.trim()); token = '';
+        } else if ((c === '\r' || c === '\n') && !inQuotes) {
+          if (c === '\r' && next === '\n') { i++; }
+          row.push(token.trim());
+          if (row.length > 1 || row[0] !== '') lines.push(row);
+          row = []; token = '';
+        } else { token += c; }
+      }
+      if (token || row.length > 0) { row.push(token.trim()); lines.push(row); }
+      return lines;
+    }
 
-  <!-- ZONA DE BANCA / BANCO TEMPORAL -->
-  <div class="border-2 border-dashed border-amber-300 bg-amber-50/60 rounded-xl p-4 mt-6">
-    <div class="flex items-center justify-between mb-2">
-      <h3 class="text-sm font-bold text-amber-900 flex items-center gap-2">
-        🛋️ Banca Temporal / Mesa de Trabajo
-        <span class="text-xs font-normal text-amber-700">(Arrastra fichas aquí para liberar sillas temporalmente)</span>
-      </h3>
-      <span id="benchCount" class="text-xs font-semibold bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full">0 fichas en banca</span>
-    </div>
-    <div id="benchContainer" 
-         ondragover="handleDragOver(event)" 
-         ondragleave="handleDragLeave(event)" 
-         ondrop="handleDropToBench(event)"
-         class="min-h-[90px] border border-amber-200 rounded-lg bg-white p-3 flex flex-wrap gap-2 items-center">
-      <p id="benchPlaceholder" class="text-xs text-amber-400 italic w-full text-center">Arrastra aquí a cualquier participante para desocupar su silla temporalmente...</p>
-    </div>
-  </div>
-</div>
+    function showStatus(msg, isError = false) {
+      const box = document.getElementById('statusBox');
+      box.style.display = 'block';
+      box.className = isError ? 'status-error' : 'status-info';
+      box.innerText = msg;
+    }
+
+    async function detectParticipantCount() {
+      const urlInput = document.getElementById('sheetUrl').value.trim();
+      if (!urlInput) return showStatus('Ingresa un enlace de Google Sheets.', true);
+      showStatus('Detectando participantes...');
+      try {
+        const response = await fetch(getCsvUrl(urlInput));
+        const text = await response.text();
+        const rows = parseCSV(text);
+        const count = Math.max(0, rows.length - 1);
+        document.getElementById('participantCount').value = count;
+        updatePlanimetryOptions();
+        showStatus(`Se detectaron ${count} participantes.`);
+      } catch (err) {
+        showStatus('Error leyendo el archivo: ' + err.message, true);
+      }
+    }
+
+    function updatePlanimetryOptions() {
+      const count = parseInt(document.getElementById('participantCount').value) || 0;
+      const select = document.getElementById('gridPreset');
+      select.innerHTML = '';
+      if (count <= 0) { select.innerHTML = '<option value="">-- Ingresa participantes primero --</option>'; return; }
+
+      const options = [];
+      for (let cols = 6; cols <= 16; cols++) {
+        let rows = Math.ceil(count / cols);
+        let cap = rows * cols;
+        let rem = cap - count;
+        let label = `${rows} Filas x ${cols} Cols (${cap} sillas` + (rem === 0 ? ' - Exacto)' : ` - sobran ${rem})`);
+        options.push({ rows, cols, label, exact: rem === 0 });
+      }
+      options.sort((a,b) => (a.exact ? -1 : 1) || Math.abs(a.rows - a.cols) - Math.abs(b.rows - b.cols));
+      options.forEach((opt, idx) => {
+        const el = document.createElement('option');
+        el.value = `${opt.rows}x${opt.cols}`;
+        el.innerText = opt.label;
+        if (idx === 0) el.selected = true;
+        select.appendChild(el);
+      });
+    }
+
+    function generateFamilyColor(index, total) {
+      const hue = Math.round((index * (360 / Math.max(total, 1))) % 360);
+      return {
+        bg: `hsl(${hue}, 85%, 94%)`,
+        border: `hsl(${hue}, 70%, 45%)`,
+        text: `hsl(${hue}, 90%, 20%)`
+      };
+    }
+
+    function buildFamilyGroups(participants) {
+      let famMap = {};
+      let familyList = [];
+
+      participants.forEach(p => {
+        if (p.tieneFamiliar) {
+          let key = p.rawRow[3] ? p.rawRow[3].trim().toLowerCase() : '';
+          if (!key || key.length < 3) key = p.familiarNom.toLowerCase().trim();
+
+          if (famMap[key] === undefined) {
+            let famName = p.rawRow[3] ? `Familia ${p.rawRow[3]}` : `Grupo ${key.toUpperCase()}`;
+            famMap[key] = { id: Object.keys(famMap).length, key: key, name: famName };
+            familyList.push(famMap[key]);
+          }
+          p.familyId = famMap[key].id;
+          p.familyName = famMap[key].name;
+        } else {
+          p.familyId = null;
+          p.familyName = null;
+        }
+      });
+
+      familyColorMap = {};
+      familyList.forEach((fam, idx) => {
+        familyColorMap[fam.id] = { name: fam.name, color: generateFamilyColor(idx, familyList.length) };
+      });
+
+      renderFamilyLegend();
+    }
+
+    function renderFamilyLegend() {
+      const legend = document.getElementById('familyLegend');
+      legend.innerHTML = '<span style="font-size:0.75rem; font-weight:bold; width:100%;">Grupos Familiares Detectados (Color Exclusivo):</span>';
+      Object.keys(familyColorMap).forEach(id => {
+        const fam = familyColorMap[id];
+        const span = document.createElement('span');
+        span.className = 'legend-item';
+        span.style.backgroundColor = fam.color.bg;
+        span.style.borderColor = fam.color.border;
+        span.style.color = fam.color.text;
+        span.innerText = fam.name;
+        legend.appendChild(span);
+      });
+    }
+
+    async function processAllocation() {
+      const urlInput = document.getElementById('sheetUrl').value.trim();
+      const preset = document.getElementById('gridPreset').value;
+      if (!urlInput || !preset) return showStatus('Especifica el enlace y la opción de planimetría.', true);
+
+      const [r, c] = preset.split('x').map(Number);
+      selectedRows = r; selectedCols = c; benchList = [];
+
+      showStatus('Cargando y procesando acomodación...');
+      try {
+        const response = await fetch(getCsvUrl(urlInput));
+        const text = await response.text();
+        const rows = parseCSV(text);
+
+        const data = [];
+        for (let i = 1; i < rows.length; i++) {
+          const r = rows[i];
+          if (!r || r.length < 5) continue;
+
+          const nombreCompleto = `${r[1]||''} ${r[2]||''} ${r[3]||''} ${r[4]||''}`.replace(/\s+/g, ' ').trim();
+          const edad = parseInt(r[8]) || 0;
+
+          let detectedSexo = null;
+          for (let colIdx = 0; colIdx < r.length; colIdx++) {
+            let val = (r[colIdx] || '').trim().toLowerCase();
+            if (val === 'femenino') { detectedSexo = 'Femenino'; break; }
+            else if (val === 'masculino') { detectedSexo = 'Masculino'; break; }
+          }
+
+          const fotoUrl = r[19] || r[20] || `https://ui-avatars.com/api/?name=${encodeURIComponent(nombreCompleto)}&background=random`;
+
+          data.push({
+            rawRow: r,
+            nombreCompleto,
+            edad,
+            sexo: detectedSexo || 'Femenino',
+            tieneFamiliar: (r[14] || '').trim().toUpperCase() === 'SI',
+            familiarNom: `${r[15]||''} ${r[16]||''} ${r[17]||''} ${r[18]||''}`.replace(/\s+/g, ' ').trim(),
+            fotoUrl,
+            id: i
+          });
+        }
+
+        rawLoadedData = rows;
+        buildFamilyGroups(data);
+        allocateSeats(data);
+
+        showStatus('Acomodación generada exitosamente.');
+        document.getElementById('btnExportExcel').disabled = false;
+        document.getElementById('btnExportImage').disabled = false;
+        document.getElementById('statsBox').style.display = 'grid';
+        document.getElementById('planContainer').style.display = 'block';
+      } catch (err) {
+        showStatus('Error en el proceso: ' + err.message, true);
+      }
+    }
+
+    function allocateSeats(participants) {
+      const sortedByAge = [...participants].sort((a, b) => a.edad - b.edad);
+
+      document.getElementById('statTotal').innerText = participants.length;
+      document.getElementById('statFem').innerText = participants.filter(d => d.sexo.toLowerCase() === 'femenino').length;
+      document.getElementById('statMas').innerText = participants.filter(d => d.sexo.toLowerCase() === 'masculino').length;
+      document.getElementById('statFam').innerText = Object.keys(familyColorMap).length;
+
+      const grid = Array.from({ length: selectedRows }, () => Array(selectedCols).fill(null));
+      let pIdx = 0;
+
+      for (let r = 0; r < selectedRows; r++) {
+        let rowPeople = sortedByAge.slice(pIdx, pIdx + selectedCols);
+        pIdx += selectedCols;
+        if (rowPeople.length === 0) break;
+
+        for (let c = 0; c < selectedCols; c++) {
+          let person = rowPeople[c];
+          if (person) {
+            person.row = r; person.col = c;
+            person.silla = `${String.fromCharCode(65 + r)}${c + 1}`;
+            grid[r][c] = person;
+          }
+        }
+      }
+
+      currentGrid = grid;
+      syncGlobalData();
+      renderGridMap();
+      renderBench();
+    }
+
+    function syncGlobalData() {
+      const list = [];
+      for (let r = 0; r < selectedRows; r++) {
+        for (let c = 0; c < selectedCols; c++) {
+          let item = currentGrid[r][c];
+          if (item) {
+            item.row = r; item.col = c;
+            item.silla = `${String.fromCharCode(65 + r)}${c + 1}`;
+            list.push(item);
+          }
+        }
+      }
+      globalAssignedData = list;
+    }
+
+    // DRAG AND DROP
+    let dragSource = null;
+    function handleDragStartGrid(e, r, c) { dragSource = { type: 'grid', r, c }; }
+    function handleDragStartBench(e, idx) { dragSource = { type: 'bench', idx }; }
+    function handleDragOver(e) { e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
+    function handleDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+
+    function handleDropToGrid(e, targetR, targetC) {
+      e.preventDefault(); e.currentTarget.classList.remove('drag-over');
+      if (!dragSource) return;
+
+      if (dragSource.type === 'grid') {
+        let srcR = dragSource.r, srcC = dragSource.c;
+        let temp = currentGrid[srcR][srcC];
+        currentGrid[srcR][srcC] = currentGrid[targetR][targetC];
+        currentGrid[targetR][targetC] = temp;
+      } else {
+        let item = benchList.splice(dragSource.idx, 1)[0];
+        let old = currentGrid[targetR][targetC];
+        if (old) benchList.push(old);
+        currentGrid[targetR][targetC] = item;
+      }
+      dragSource = null; syncGlobalData(); renderGridMap(); renderBench();
+    }
+
+    function handleDropToBench(e) {
+      e.preventDefault(); e.currentTarget.classList.remove('drag-over');
+      if (!dragSource || dragSource.type !== 'grid') return;
+      let item = currentGrid[dragSource.r][dragSource.c];
+      if (item) { currentGrid[dragSource.r][dragSource.c] = null; benchList.push(item); }
+      dragSource = null; syncGlobalData(); renderGridMap(); renderBench();
+    }
+
+    function renderGridMap() {
+      const gridMap = document.getElementById('gridMap');
+      gridMap.innerHTML = '';
+      gridMap.style.gridTemplateColumns = `repeat(${selectedCols}, minmax(0, 1fr))`;
+
+      for (let r = 0; r < selectedRows; r++) {
+        for (let c = 0; c < selectedCols; c++) {
+          const item = currentGrid[r][c];
+          const div = document.createElement('div');
+          let seatTag = `${String.fromCharCode(65 + r)}${c + 1}`;
+
+          div.setAttribute('ondragover', 'handleDragOver(event)');
+          div.setAttribute('ondragleave', 'handleDragLeave(event)');
+          div.setAttribute('ondrop', `handleDropToGrid(event, ${r}, ${c})`);
+
+          if (item) {
+            div.draggable = true;
+            div.setAttribute('ondragstart', `handleDragStartGrid(event, ${r}, ${c})`);
+            div.setAttribute('onmousemove', `showTooltip(event, '${item.nombreCompleto}', '${item.edad} años | ${item.sexo}', '${item.familyName || 'Sin Grupo Familiar'}', '${item.fotoUrl}')`);
+            div.setAttribute('onmouseleave', 'hideTooltip()');
+
+            if (item.familyId !== null && familyColorMap[item.familyId]) {
+              let fam = familyColorMap[item.familyId];
+              div.className = 'chair';
+              div.style.backgroundColor = fam.color.bg;
+              div.style.borderColor = fam.color.border;
+              div.style.borderWidth = '2px';
+              div.style.color = fam.color.text;
+              div.innerHTML = `
+                <div style="font-weight:bold; font-size:0.7rem;">${seatTag}</div>
+                <div style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.nombreCompleto}</div>
+                <div style="font-size:0.65rem; opacity:0.8;">${item.edad}a | ${item.sexo[0]}</div>
+              `;
+            } else {
+              div.className = 'chair chair-individual';
+              div.innerHTML = `
+                <div style="font-weight:bold; font-size:0.7rem; color:#475569;">${seatTag}</div>
+                <div style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.nombreCompleto}</div>
+                <div style="font-size:0.65rem; color:#64748b;">${item.edad}a | ${item.sexo[0]}</div>
+              `;
+            }
+          } else {
+            div.className = 'chair chair-empty';
+            div.innerHTML = `<span>${seatTag}</span>`;
+          }
+          gridMap.appendChild(div);
+        }
+      }
+    }
+
+    function renderBench() {
+      const container = document.getElementById('benchContainer');
+      const counter = document.getElementById('benchCount');
+      container.innerHTML = '';
+      counter.innerText = `${benchList.length} ficha(s)`;
+
+      if (benchList.length === 0) {
+        container.innerHTML = `<p style="font-size:0.75rem; color:#d97706; font-style:italic; width:100%; text-align:center;">Arrastra aquí a cualquier participante para desocupar su silla temporalmente...</p>`;
+        return;
+      }
+
+      benchList.forEach((item, index) => {
+        const div = document.createElement('div');
+        div.draggable = true;
+        div.setAttribute('ondragstart', `handleDragStartBench(event, ${index})`);
+        div.setAttribute('onmousemove', `showTooltip(event, '${item.nombreCompleto}', '${item.edad} años | ${item.sexo}', '${item.familyName || 'Sin Grupo Familiar'}', '${item.fotoUrl}')`);
+        div.setAttribute('onmouseleave', 'hideTooltip()');
+
+        if (item.familyId !== null && familyColorMap[item.familyId]) {
+          let fam = familyColorMap[item.familyId];
+          div.className = 'chair';
+          div.style.width = '110px';
+          div.style.backgroundColor = fam.color.bg;
+          div.style.borderColor = fam.color.border;
+          div.style.color = fam.color.text;
+          div.innerHTML = `
+            <div style="font-weight:bold; font-size:0.65rem;">${fam.name}</div>
+            <div style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.nombreCompleto}</div>
+            <div style="font-size:0.65rem; opacity:0.8;">${item.edad}a | ${item.sexo[0]}</div>
+          `;
+        } else {
+          div.className = 'chair chair-individual';
+          div.style.width = '110px';
+          div.innerHTML = `
+            <div style="font-weight:bold; font-size:0.65rem; color:#d97706;">Banca</div>
+            <div style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.nombreCompleto}</div>
+            <div style="font-size:0.65rem; color:#64748b;">${item.edad}a | ${item.sexo[0]}</div>
+          `;
+        }
+        container.appendChild(div);
+      });
+    }
+
+    // TOOLTIP HOVER
+    function showTooltip(e, name, info, fam, photo) {
+      const card = document.getElementById('tooltipCard');
+      document.getElementById('ttName').innerText = name;
+      document.getElementById('ttInfo').innerText = info;
+      document.getElementById('ttFam').innerText = fam;
+      document.getElementById('ttPhoto').src = photo;
+
+      card.style.display = 'block';
+      card.style.left = (e.clientX + 15) + 'px';
+      card.style.top = (e.clientY + 15) + 'px';
+    }
+
+    function hideTooltip() {
+      document.getElementById('tooltipCard').style.display = 'none';
+    }
+
+    // EXPORTACIÓN
+    function exportToExcel() {
+      if (!globalAssignedData || globalAssignedData.length === 0) return;
+      const headers = [...rawLoadedData[0], 'SILLA'];
+      const exportData = [headers];
+      globalAssignedData.forEach(item => {
+        const row = [...item.rawRow];
+        row.push(item.silla);
+        exportData.push(row);
+      });
+      const ws = XLSX.utils.aoa_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Acomodación");
+      XLSX.writeFile(wb, "Acomodacion_Retiro_Espiritual.xlsx");
+    }
+
+    async function exportPlanToImage() {
+      const container = document.getElementById('planContainer');
+      showStatus('Generando imagen del plano...');
+      try {
+        const canvas = await html2canvas(container, { scale: 2, backgroundColor: '#ffffff' });
+        const link = document.createElement('a');
+        link.download = 'Plano_Acomodacion.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        showStatus('Plano descargado como imagen PNG.');
+      } catch (err) {
+        showStatus('Error generando la imagen: ' + err.message, true);
+      }
+    }
+  </script>
+</body>
+</html>
