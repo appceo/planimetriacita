@@ -198,6 +198,7 @@
     <img id="ttPhoto" src="" alt="Foto Participante" onerror="handleImageError(this)">
     <div id="ttName" style="font-weight: 700; font-size: 0.875rem; color: #1e293b;"></div>
     <div id="ttInfo" style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;"></div>
+    <div id="ttCivil" style="font-size: 0.75rem; font-weight: 600; color: #059669; margin-top: 0.15rem;"></div>
     <div id="ttFam" style="font-size: 0.75rem; font-weight: 600; color: #4f46e5; margin-top: 0.25rem;"></div>
   </div>
 
@@ -223,7 +224,6 @@
       }
       url = url.trim();
 
-      // Extraer ID si es un enlace de Google Drive
       const driveMatch = url.match(/(?:id=|\/d\/|\/file\/d\/)([a-zA-Z0-9_-]{25,})/);
       if (driveMatch && driveMatch[1]) {
         return `https://lh3.googleusercontent.com/d/${driveMatch[1]}`;
@@ -237,7 +237,7 @@
     }
 
     function handleImageError(imgElement) {
-      imgElement.onerror = null; // Prevenir loop infinito
+      imgElement.onerror = null;
       imgElement.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentParticipantName || 'P')}&background=6366f1&color=fff`;
     }
 
@@ -395,7 +395,17 @@
             else if (val === 'masculino') { detectedSexo = 'Masculino'; break; }
           }
 
-          // Buscar columna con URL de foto
+          // Detección de Estado Civil
+          let estadoCivil = 'No especificado';
+          for (let colIdx = 0; colIdx < r.length; colIdx++) {
+            let val = (r[colIdx] || '').trim().toLowerCase();
+            if (['soltero', 'soltera', 'casado', 'casada', 'unión libre', 'union libre', 'divorciado', 'divorciada', 'viudo', 'viuda'].some(ec => val.includes(ec))) {
+              estadoCivil = r[colIdx].trim();
+              break;
+            }
+          }
+
+          // URL de Foto
           let rawFoto = '';
           for (let colIdx = r.length - 1; colIdx >= 0; colIdx--) {
             let val = (r[colIdx] || '').trim();
@@ -412,6 +422,7 @@
             nombreCompleto,
             edad,
             sexo: detectedSexo || 'Femenino',
+            estadoCivil,
             tieneFamiliar: (r[14] || '').trim().toUpperCase() === 'SI',
             familiarNom: `${r[15]||''} ${r[16]||''} ${r[17]||''} ${r[18]||''}`.replace(/\s+/g, ' ').trim(),
             fotoUrl,
@@ -531,7 +542,7 @@
           if (item) {
             div.draggable = true;
             div.setAttribute('ondragstart', `handleDragStartGrid(event, ${r}, ${c})`);
-            div.addEventListener('mousemove', (e) => showTooltip(e, item.nombreCompleto, `${item.edad} años | ${item.sexo}`, item.familyName || 'Sin Grupo Familiar', item.fotoUrl));
+            div.addEventListener('mousemove', (e) => showTooltip(e, item.nombreCompleto, `${item.edad} años | ${item.sexo}`, item.estadoCivil, item.familyName || 'Sin Grupo Familiar', item.fotoUrl));
             div.addEventListener('mouseleave', hideTooltip);
 
             if (item.familyId !== null && familyColorMap[item.familyId]) {
@@ -578,7 +589,7 @@
         const div = document.createElement('div');
         div.draggable = true;
         div.setAttribute('ondragstart', `handleDragStartBench(event, ${index})`);
-        div.addEventListener('mousemove', (e) => showTooltip(e, item.nombreCompleto, `${item.edad} años | ${item.sexo}`, item.familyName || 'Sin Grupo Familiar', item.fotoUrl));
+        div.addEventListener('mousemove', (e) => showTooltip(e, item.nombreCompleto, `${item.edad} años | ${item.sexo}`, item.estadoCivil, item.familyName || 'Sin Grupo Familiar', item.fotoUrl));
         div.addEventListener('mouseleave', hideTooltip);
 
         if (item.familyId !== null && familyColorMap[item.familyId]) {
@@ -606,14 +617,15 @@
       });
     }
 
-    // TOOLTIP HOVER CON MANEJO DE FOTO
-    function showTooltip(e, name, info, fam, photo) {
+    // TOOLTIP HOVER CON ESTADO CIVIL
+    function showTooltip(e, name, info, civil, fam, photo) {
       currentParticipantName = name;
       const card = document.getElementById('tooltipCard');
       const img = document.getElementById('ttPhoto');
 
       document.getElementById('ttName').innerText = name;
       document.getElementById('ttInfo').innerText = info;
+      document.getElementById('ttCivil').innerText = `Estado Civil: ${civil}`;
       document.getElementById('ttFam').innerText = fam;
 
       img.src = photo;
